@@ -14538,7 +14538,7 @@ Value builtin_os_processes_inject_library(const std::vector<Value> &args) {
     
     // Get address of LoadLibraryA
     HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
-    LPVOID load_library_addr = GetProcAddress(kernel32, "LoadLibraryA");
+    LPVOID load_library_addr = (LPVOID)GetProcAddress(kernel32, "LoadLibraryA");
     if (!load_library_addr) {
         VirtualFreeEx(hProcess, remote_path, 0, MEM_RELEASE);
         CloseHandle(hProcess);
@@ -16328,7 +16328,7 @@ Value builtin_os_audio_play_tone(const std::vector<Value> &args) {
     
     for (uint32_t i = 0; i < num_samples; ++i) {
         double t = static_cast<double>(i) / sample_rate;
-        double value = volume * 32767.0 * std::sin(2.0 * M_PI * frequency * t);
+        double value = volume * 32767.0 * std::sin(2.0 * 3.14159265358979323846 * frequency * t);
         samples[i] = static_cast<int16_t>(value);
     }
     
@@ -17471,7 +17471,7 @@ Value builtin_os_events_watch_file(const std::vector<Value> &args) {
             dir_handle,
             listener->buffer.data(),
             static_cast<DWORD>(listener->buffer.size()),
-            TRUE,  // Watch subtree
+            1,  // Watch subtree
             notify_filter,
             &bytes_returned,
             &listener->overlapped,
@@ -17684,7 +17684,7 @@ Value builtin_os_events_poll(const std::vector<Value> &args) {
                 listener->directory_handle,
                 listener->buffer.data(),
                 static_cast<DWORD>(listener->buffer.size()),
-                TRUE,
+                1,
                 FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
                 FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
                 &bytes_returned,

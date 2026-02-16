@@ -73,7 +73,8 @@ jobs:
       - name: Build Levython
         run: |
           echo "Building Levython for macOS..."
-          make CXX=clang++ CXXFLAGS="-std=c++17 -O2"
+          OPENSSL_ROOT=$(brew --prefix openssl@3)
+          make CXX=clang++ CXXFLAGS="-std=c++17 -O2 -I${OPENSSL_ROOT}/include" LDFLAGS="-L${OPENSSL_ROOT}/lib"
           ls -lh levython
           file levython
 

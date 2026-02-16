@@ -170,8 +170,13 @@ jobs:
         run: |
           echo "Building Levython for macOS (x86_64)..."
           make clean
-          make CXX=clang++ CXXFLAGS="-std=c++17 -O3 -DNDEBUG -arch x86_64" \
-               LDFLAGS="-L/usr/local/opt/openssl@3/lib" \
+
+          # Set OpenSSL paths
+          OPENSSL_ROOT=$(brew --prefix openssl@3)
+
+          make CXX=clang++ \
+               CXXFLAGS="-std=c++17 -O3 -DNDEBUG -arch x86_64 -I${OPENSSL_ROOT}/include" \
+               LDFLAGS="-L${OPENSSL_ROOT}/lib" \
                OUT=levython-x86_64
 
           ls -lh levython-x86_64
@@ -181,8 +186,13 @@ jobs:
         run: |
           echo "Building Levython for macOS (arm64)..."
           make clean
-          make CXX=clang++ CXXFLAGS="-std=c++17 -O3 -DNDEBUG -arch arm64" \
-               LDFLAGS="-L/opt/homebrew/opt/openssl@3/lib" \
+
+          # Set OpenSSL paths
+          OPENSSL_ROOT=$(brew --prefix openssl@3)
+
+          make CXX=clang++ \
+               CXXFLAGS="-std=c++17 -O3 -DNDEBUG -arch arm64 -I${OPENSSL_ROOT}/include" \
+               LDFLAGS="-L${OPENSSL_ROOT}/lib" \
                OUT=levython-arm64
 
           ls -lh levython-arm64
@@ -351,8 +361,7 @@ jobs:
           Homepage: https://github.com/levython/levython
           EOFCONTROL
 
-          dpkg-deb --build "${deb_name}"
-          mv "${deb_name}.deb" "levython_${version}_amd64.deb"
+          dpkg-deb --build "${deb_name}" "levython_${version}_amd64.deb"
 
           ls -lh *.tar.gz *.deb
           echo "✓ Linux packages created"
