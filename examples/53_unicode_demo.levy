@@ -1,0 +1,242 @@
+# ==============================================================================
+# Unicode and Character Encoding Demo
+# ==============================================================================
+# This example demonstrates Levython's cross-platform Unicode and ASCII support
+# Works on Windows, Unix, Linux, and macOS
+
+say("=== Unicode and Character Encoding Demo ===")
+say("")
+
+# ==============================================================================
+# 1. BASIC ASCII CHARACTERS
+# ==============================================================================
+say("1. ASCII Characters:")
+say("Hello, World!")
+say("Numbers: 0123456789")
+say("Symbols: !@#$%^&*()_+-=[]{}|;:',.<>?/~`")
+say("")
+
+# ==============================================================================
+# 2. UNICODE CHARACTERS - EMOJIS
+# ==============================================================================
+say("2. Unicode Emojis:")
+say("😀 😃 😄 😁 😆 😅 😂 🤣")
+say("❤️ 💙 💚 💛 🧡 💜 🖤 🤍")
+say("🔥 💧 🌟 ⭐ ✨ 💫 ⚡ 🌈")
+say("👍 👎 👌 ✌️ 🤘 🙏 💪 👏")
+say("")
+
+# ==============================================================================
+# 3. UNICODE CHARACTERS - INTERNATIONAL TEXT
+# ==============================================================================
+say("3. International Languages:")
+say("English: Hello World")
+say("Spanish: Hola Mundo")
+say("French: Bonjour le Monde")
+say("German: Hallo Welt")
+say("Italian: Ciao Mondo")
+say("Portuguese: Olá Mundo")
+say("Russian: Привет мир")
+say("Greek: Γειά σου κόσμε")
+say("Arabic: مرحبا بالعالم")
+say("Hebrew: שלום עולם")
+say("Hindi: नमस्ते दुनिया")
+say("Chinese: 你好世界")
+say("Japanese: こんにちは世界")
+say("Korean: 안녕하세요 세계")
+say("Thai: สวัสดีชาวโลก")
+say("Vietnamese: Xin chào thế giới")
+say("")
+
+# ==============================================================================
+# 4. UNICODE BOX DRAWING CHARACTERS
+# ==============================================================================
+say("4. Box Drawing Characters:")
+say("┌─────────────────────────┐")
+say("│  Levython Unicode Demo  │")
+say("├─────────────────────────┤")
+say("│  ✓ Full UTF-8 Support   │")
+say("│  ✓ Cross-Platform       │")
+say("│  ✓ Windows Compatible   │")
+say("└─────────────────────────┘")
+say("")
+
+# ==============================================================================
+# 5. UNICODE MATHEMATICAL SYMBOLS
+# ==============================================================================
+say("5. Mathematical Symbols:")
+say("Greek letters: α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω")
+say("Operations: ∑ ∏ ∫ ∂ ∇ √ ∞ ≈ ≠ ≤ ≥ ± ∓ × ÷")
+say("Sets: ∈ ∉ ⊂ ⊃ ⊆ ⊇ ∩ ∪ ∅ ∀ ∃")
+say("Logic: ∧ ∨ ¬ ⊕ ⊗ → ↔ ⇒ ⇔")
+say("")
+
+# ==============================================================================
+# 6. UNICODE ARROWS AND SYMBOLS
+# ==============================================================================
+say("6. Arrows and Directional Symbols:")
+say("Arrows: ← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔")
+say("Curved: ↶ ↷ ⤴ ⤵ ⬆ ⬇ ⬅ ➡")
+say("Circled: ➀ ➁ ➂ ➃ ➄ ➅ ➆ ➇ ➈ ➉")
+say("Stars: ★ ☆ ✪ ✫ ✬ ✭ ✮ ✯ ✰")
+say("")
+
+# ==============================================================================
+# 7. UNICODE TECHNICAL SYMBOLS
+# ==============================================================================
+say("7. Technical Symbols:")
+say("Weather: ☀ ☁ ☂ ☃ ⛄ ⚡ ❄ 🌡")
+say("Music: ♩ ♪ ♫ ♬ ♭ ♮ ♯ 🎵 🎶")
+say("Chess: ♔ ♕ ♖ ♗ ♘ ♙ ♚ ♛ ♜ ♝ ♞ ♟")
+say("Cards: ♠ ♣ ♥ ♦ 🂡 🂢 🂣 🂤")
+say("Zodiac: ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓")
+say("")
+
+# ==============================================================================
+# 8. STRING OPERATIONS WITH UNICODE
+# ==============================================================================
+say("8. String Operations with Unicode:")
+text1 <- "Hello 世界"
+text2 <- "Привет 🌍"
+text3 <- "مرحبا"
+
+say("Text 1: " + text1)
+say("Text 2: " + text2)
+say("Text 3: " + text3)
+say("Concatenated: " + text1 + " " + text2 + " " + text3)
+say("")
+
+# ==============================================================================
+# 9. UNICODE IN VARIABLES AND FUNCTIONS
+# ==============================================================================
+say("9. Unicode in Variables and Functions:")
+
+act greet(name) {
+    -> "Hello, " + name + "! 👋"
+}
+
+say(greet("Alice"))
+say(greet("محمد"))
+say(greet("李明"))
+say(greet("Анна"))
+say("")
+
+# ==============================================================================
+# 10. SPECIAL CHARACTERS AND DIACRITICS
+# ==============================================================================
+say("10. Diacritics and Accented Characters:")
+say("French: café, naïve, résumé, façade")
+say("Spanish: niño, señor, año, jalapeño")
+say("German: über, müller, größe, Köln")
+say("Portuguese: ação, pão, coração, João")
+say("Swedish: Åse, Örebro, Ängel")
+say("Turkish: şişli, çınar, ığdır, ğüzel")
+say("")
+
+# ==============================================================================
+# 11. UNICODE LINE ART
+# ==============================================================================
+say("11. Unicode Line Art:")
+say("    ╔═══════════════╗")
+say("    ║   Levython    ║")
+say("    ║  Be Better    ║")
+say("    ║   Than        ║")
+say("    ║  Yesterday    ║")
+say("    ╚═══════════════╝")
+say("")
+
+# ==============================================================================
+# 12. EMOJI EXPRESSIONS
+# ==============================================================================
+say("12. Emoji Expressions:")
+say("Happy: 😀 😃 😄 😁 😆 😊 ☺️ 🤗")
+say("Love: 😍 😘 😗 😙 😚 🥰 😻 💕")
+say("Sad: 😢 😭 😿 😔 😞 😟 😩 😫")
+say("Surprised: 😮 😯 😲 😳 🤯 😱 😨 😰")
+say("Cool: 😎 🤓 🧐 😏 😒 🙄 😑 😐")
+say("")
+
+# ==============================================================================
+# 13. PROGRESS BAR WITH UNICODE
+# ==============================================================================
+say("13. Unicode Progress Bar:")
+act show_progress(percent) {
+    filled <- int(percent / 10)
+    empty <- 10 - filled
+    bar <- "["
+    for i in range(filled) {
+        bar <- bar + "█"
+    }
+    for i in range(empty) {
+        bar <- bar + "░"
+    }
+    bar <- bar + "] " + str(percent) + "%"
+    -> bar
+}
+
+say(show_progress(0))
+say(show_progress(25))
+say(show_progress(50))
+say(show_progress(75))
+say(show_progress(100))
+say("")
+
+# ==============================================================================
+# 14. UNICODE CURRENCY SYMBOLS
+# ==============================================================================
+say("14. Currency Symbols:")
+say("Dollar: $100")
+say("Euro: €50")
+say("Pound: £75")
+say("Yen: ¥1000")
+say("Rupee: ₹500")
+say("Won: ₩10000")
+say("Bitcoin: ₿0.5")
+say("Ruble: ₽200")
+say("")
+
+# ==============================================================================
+# 15. UNICODE SUPERSCRIPTS AND SUBSCRIPTS
+# ==============================================================================
+say("15. Superscripts and Subscripts:")
+say("Mathematical: E = mc²")
+say("Chemical: H₂O, CO₂, C₆H₁₂O₆")
+say("Footnotes: Reference¹ Another² Third³")
+say("Powers: x¹ x² x³ x⁴ x⁵ x⁶ x⁷ x⁸ x⁹")
+say("")
+
+# ==============================================================================
+# 16. UNICODE BRAILLE
+# ==============================================================================
+say("16. Braille Characters:")
+say("⠇⠑⠧⠽⠞⠓⠕⠝")
+say("(Levython in Braille)")
+say("")
+
+# ==============================================================================
+# 17. CROSS-PLATFORM COMPATIBILITY CHECK
+# ==============================================================================
+say("17. Platform Compatibility Status:")
+say("✓ Windows: Full Unicode support enabled")
+say("✓ Linux: Native UTF-8 support")
+say("✓ macOS: Native UTF-8 support")
+say("✓ Unix: Native UTF-8 support")
+say("")
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+say("╔═══════════════════════════════════════════════════════════╗")
+say("║           Levython Unicode Support Summary                ║")
+say("╠═══════════════════════════════════════════════════════════╣")
+say("║  ✓ Full UTF-8 encoding support                           ║")
+say("║  ✓ Cross-platform character display                      ║")
+say("║  ✓ Windows console UTF-8 initialization                  ║")
+say("║  ✓ International language support                        ║")
+say("║  ✓ Emoji and symbol rendering                            ║")
+say("║  ✓ Automatic BOM (Byte Order Mark) handling              ║")
+say("║  ✓ UTF-8 validation and sanitization                     ║")
+say("╚═══════════════════════════════════════════════════════════╝")
+say("")
+say("All Unicode characters displayed correctly! 🎉")
+say("Levython: Be better than yesterday! 🚀")

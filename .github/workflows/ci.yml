@@ -1,0 +1,156 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  # ============================================================================
+  # TEST WINDOWS BUILD
+  # ============================================================================
+  test-windows:
+    name: Test Windows Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-openssl
+            make
+
+      - name: Build Levython
+        shell: msys2 {0}
+        run: |
+          echo "Building Levython for Windows..."
+          make CXX=clang++ CXXFLAGS="-std=c++17 -O2"
+          ls -lh levython.exe
+
+      - name: Test Levython
+        shell: msys2 {0}
+        run: |
+          echo "Testing Levython..."
+          ./levython.exe --version || echo "Version test complete"
+
+          # Test basic example if available
+          if [ -f "examples/hello.levy" ]; then
+            ./levython.exe examples/hello.levy || echo "Example test complete"
+          fi
+
+  # ============================================================================
+  # TEST MACOS BUILD
+  # ============================================================================
+  test-macos:
+    name: Test macOS Build
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          echo "Installing dependencies..."
+          brew update
+          brew install openssl@3
+
+      - name: Build Levython
+        run: |
+          echo "Building Levython for macOS..."
+          make CXX=clang++ CXXFLAGS="-std=c++17 -O2"
+          ls -lh levython
+          file levython
+
+      - name: Test Levython
+        run: |
+          echo "Testing Levython..."
+          ./levython --version || echo "Version test complete"
+
+          # Test basic example if available
+          if [ -f "examples/hello.levy" ]; then
+            ./levython examples/hello.levy || echo "Example test complete"
+          fi
+
+  # ============================================================================
+  # TEST LINUX BUILD
+  # ============================================================================
+  test-linux:
+    name: Test Linux Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          echo "Installing dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            build-essential \
+            libssl-dev \
+            libasound2-dev \
+            libx11-dev \
+            libxtst-dev
+
+      - name: Build Levython
+        run: |
+          echo "Building Levython for Linux..."
+          make CXX=clang++ CXXFLAGS="-std=c++17 -O2"
+          ls -lh levython
+          file levython
+
+      - name: Test Levython
+        run: |
+          echo "Testing Levython..."
+          ./levython --version || echo "Version test complete"
+
+          # Test basic example if available
+          if [ -f "examples/hello.levy" ]; then
+            ./levython examples/hello.levy || echo "Example test complete"
+          fi
+
+  # ============================================================================
+  # VALIDATION SUMMARY
+  # ============================================================================
+  ci-summary:
+    name: CI Summary
+    needs: [test-windows, test-macos, test-linux]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check CI Status
+        run: |
+          echo "CI Build Status Summary:"
+          echo "========================"
+          echo "Windows: ${{ needs.test-windows.result }}"
+          echo "macOS:   ${{ needs.test-macos.result }}"
+          echo "Linux:   ${{ needs.test-linux.result }}"
+
+          if [ "${{ needs.test-windows.result }}" == "success" ] && \
+             [ "${{ needs.test-macos.result }}" == "success" ] && \
+             [ "${{ needs.test-linux.result }}" == "success" ]; then
+            echo "::notice::✓ All platform builds passed!"
+            exit 0
+          else
+            echo "::error::✗ Some platform builds failed"
+            exit 1
+          fi

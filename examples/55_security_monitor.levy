@@ -1,0 +1,544 @@
+# ============================================================================
+# SECURITY SCREEN CAPTURE MONITOR - CROSS-PLATFORM
+# ============================================================================
+# Detects screenshot, screen recording, and print screen attempts
+# Triggers continuous alarm with beeping and screen flashing
+# Runs in background monitoring mode
+#
+# DETECTED THREATS (ALL PLATFORMS):
+#   WINDOWS:
+#     - Print Screen key (all variants)
+#     - Win+Shift+S (Snipping Tool)
+#     - Win+G (Game Bar recording)
+#     - Win+Alt+R (Screen recording)
+#     - Win+P (Projection/Screen capture)
+#   
+#   MACOS:
+#     - Cmd+Shift+3 (Full screenshot)
+#     - Cmd+Shift+4 (Area screenshot)
+#     - Cmd+Shift+5 (Screenshot utility)
+#   
+#   LINUX (including Arch):
+#     - Print Screen (full screenshot)
+#     - Shift+PrintScreen (area selection)
+#     - Alt+PrintScreen (window)
+#     - Ctrl+Alt+PrintScreen (clipboard)
+#     - Ctrl+Shift+PrintScreen (Gnome Screenshot)
+#     - Super+P (KDE Spectacle on Arch)
+#     - Super+Shift+S (KDE Spectacle area)
+#     - Ctrl+Alt+S (various distros)
+#     - Print/SysRq (alternative codes)
+#
+# RESPONSE:
+#   - Continuous beeping alarm
+#   - Screen flashing effects
+#   - Alert messages
+#
+# Run with: ./levython examples/55_security_monitor.levy
+# ============================================================================
+
+import os
+import input
+import datetime
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+ALARM_ENABLED <- yes
+FLASH_ENABLED <- yes
+CHECK_INTERVAL_MS <- 50  # Check every 50ms for fast detection
+
+# Key codes for detection (Cross-platform)
+# Print Screen - multiple possible codes
+PRINT_SCREEN <- 44      # Standard PrintScreen
+PRINT_SCREEN_ALT <- 107 # Alternative PrintScreen code
+PRINT_SCREEN_SYS <- 99  # SysRq on some Linux systems
+
+KEY_S <- 83
+KEY_G <- 71
+KEY_R <- 82
+KEY_P <- 80
+KEY_3 <- 51
+KEY_4 <- 52
+KEY_5 <- 53
+
+# Modifier keys - multiple possible codes
+KEY_SHIFT <- 16
+KEY_SHIFT_LEFT <- 16
+KEY_SHIFT_RIGHT <- 16
+
+KEY_CTRL <- 17
+KEY_CTRL_LEFT <- 17
+KEY_CTRL_RIGHT <- 17
+
+KEY_ALT <- 18
+KEY_ALT_LEFT <- 18
+KEY_ALT_RIGHT <- 18
+
+KEY_WIN <- 91           # Windows key
+KEY_META <- 91          # Meta/Super key on Linux
+KEY_SUPER <- 133        # Super key alternative on Linux
+KEY_SUPER_LEFT <- 133
+KEY_SUPER_RIGHT <- 134
+
+# ============================================================================
+# State
+# ============================================================================
+
+alarm_active <- no
+flash_counter <- 0
+last_alert_time <- 0
+threat_detected <- no
+threat_type <- ""
+
+# Track modifier keys manually
+ctrl_pressed <- no
+shift_pressed <- no
+alt_pressed <- no
+win_pressed <- no
+meta_pressed <- no
+
+# Track recently pressed keys for debugging
+recent_keys <- []
+
+# ============================================================================
+# Security Functions
+# ============================================================================
+
+act trigger_alarm(threat) {
+    # Clear screen first
+    clear_display()
+    
+    say("")
+    say("================================================================")
+    say("================================================================")
+    say("  [!!!] SECURITY ALERT - SCREEN CAPTURE DETECTED [!!!]")
+    say("================================================================")
+    say("================================================================")
+    say("  Threat Type: " + threat)
+    say("  Time: " + str(datetime.epoch_ms()))
+    say("  ACTION: Continuous alarm activated!")
+    say("================================================================")
+    say("================================================================")
+    say("")
+    say(">>> ALARM TRIGGERED! Beeping and flashing will continue...")
+    say(">>> Press 'Q' to stop the alarm")
+    say("")
+    
+    alarm_active <- yes
+    threat_type <- threat
+    threat_detected <- yes
+    
+    # Immediate beep
+    try {
+        os.Audio.play_tone(1500.0, 0.3, 1.0)
+    } catch e {
+        say(">>> [BEEP!] (Audio not available)")
+    }
+}
+
+act beep_alarm() {
+    # Continuous high-pitched beeping using proper OS.Audio
+    try {
+        # Play LOUD high-pitched alarm tone
+        os.Audio.play_tone(1500.0, 0.15, 1.0)
+    } catch e {
+        # If audio fails, we still have visual alerts
+        none
+    }
+}
+
+act flash_screen() {
+    # Flash the screen aggressively with ANSI escape codes
+    flash_counter <- flash_counter + 1
+    
+    # ANSI escape sequences for clearing and colors
+    # \033[2J = clear screen, \033[H = move to home
+    clear_code <- "\033[2J\033[H"
+    
+    # Print clear screen code
+    say(clear_code)
+    
+    if flash_counter % 2 == 0 {
+        # BRIGHT RED ALERT
+        say("\033[41m\033[97m")
+        say("                                                                ")
+        say("   [!!!] [!!!] [!!!] SECURITY ALERT [!!!] [!!!] [!!!]        ")
+        say("   [!!!] [!!!] [!!!]  ** BEEP **   [!!!] [!!!] [!!!]        ")
+        say("                                                                ")
+        say("   SCREEN CAPTURE DETECTED - UNAUTHORIZED ACCESS ATTEMPT      ")
+        say("                                                                ")
+        say("   THREAT: " + threat_type)
+        say("   TIME: " + str(datetime.epoch_ms()))
+        say("   FLASH COUNT: " + str(flash_counter))
+        say("                                                                ")
+        say("   [!!!] [!!!] [!!!]  ** BEEP **   [!!!] [!!!] [!!!]        ")
+        say("   [!!!] [!!!] [!!!] SECURITY ALERT [!!!] [!!!] [!!!]        ")
+        say("                                                                ")
+        say("\033[0m")
+    } else {
+        # BLACK SCREEN WITH WHITE BLINKING TEXT
+        say("\033[5m\033[93m")  # Blinking yellow
+        say("")
+        say("")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("")
+        say("   " + threat_type)
+        say("   FLASH #" + str(flash_counter))
+        say("")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("   >>>>>>>>>>>>  ** BEEP ** ALARM ACTIVE ** BEEP **  <<<<<<<<<<<<<<")
+        say("")
+        say("\033[0m")
+    }
+}
+
+act clear_display() {
+    # Clear screen for clean monitoring display
+    i <- 0
+    while i < 40 {
+        say("")
+        i <- i + 1
+    }
+}
+
+act is_key_pressed(key_state, key_code) {
+    key_str <- str(key_code)
+    if contains(key_state, key_str) {
+        -> key_state[key_str]
+    }
+    -> no
+}
+
+act log_key_event(key, code, key_type) {
+    # Log all key events for debugging
+    say(">>> KEY: '" + key + "' | CODE: " + str(code) + " | TYPE: " + key_type)
+    
+    # Show current modifier state
+    mods <- ""
+    if ctrl_pressed {
+        mods <- mods + "CTRL+"
+    }
+    if shift_pressed {
+        mods <- mods + "SHIFT+"
+    }
+    if alt_pressed {
+        mods <- mods + "ALT+"
+    }
+    if win_pressed or meta_pressed {
+        mods <- mods + "WIN/META+"
+    }
+    
+    if len(mods) > 0 {
+        say(">>> MODIFIERS: " + mods)
+    }
+}
+
+act check_screenshot_combo(key, code) {
+    # Check for screenshot combinations based on current key + modifiers
+    say(">>> CHECKING COMBO: key='" + key + "' code=" + str(code) + " | Ctrl=" + str(ctrl_pressed) + " Shift=" + str(shift_pressed) + " Alt=" + str(alt_pressed) + " Win=" + str(win_pressed))
+    
+    # Print Screen key - multiple possible codes for Linux/Arch
+    if code == 44 or code == 107 or code == 99 or key == "PrintScreen" or key == "Print" or key == "SysRq" {
+        if not alarm_active {
+            if shift_pressed and not alt_pressed and not ctrl_pressed {
+                trigger_alarm("AREA SCREENSHOT (Shift+PrintScreen)")
+            } else if alt_pressed and not shift_pressed and not ctrl_pressed {
+                trigger_alarm("WINDOW SCREENSHOT (Alt+PrintScreen)")
+            } else if ctrl_pressed and alt_pressed {
+                trigger_alarm("CLIPBOARD SCREENSHOT (Ctrl+Alt+PrintScreen)")
+            } else if ctrl_pressed and shift_pressed {
+                trigger_alarm("GNOME SCREENSHOT (Ctrl+Shift+PrintScreen)")
+            } else {
+                trigger_alarm("PRINT SCREEN KEY")
+            }
+        }
+        -> yes
+    }
+    
+    # Windows/Mac/Linux combinations with Win/Meta key
+    if win_pressed or meta_pressed {
+        # Win+Shift+S (Windows Snipping Tool)
+        if shift_pressed and (key == "s" or key == "S" or code == 83) {
+            if not alarm_active {
+                trigger_alarm("WINDOWS SNIPPING TOOL (Win+Shift+S)")
+            }
+            -> yes
+        }
+        
+        # Win+G (Windows Game Bar)
+        if (key == "g" or key == "G" or code == 71) {
+            if not alarm_active {
+                trigger_alarm("WINDOWS GAME BAR (Win+G)")
+            }
+            -> yes
+        }
+        
+        # Win+P (Windows Projection)
+        if (key == "p" or key == "P" or code == 80) {
+            if not alarm_active {
+                trigger_alarm("WINDOWS PROJECTION (Win+P)")
+            }
+            -> yes
+        }
+        
+        # Win+Alt+R (Windows recording)
+        if alt_pressed and (key == "r" or key == "R" or code == 82) {
+            if not alarm_active {
+                trigger_alarm("WINDOWS SCREEN RECORDING (Win+Alt+R)")
+            }
+            -> yes
+        }
+        
+        # Mac: Cmd+Shift+3/4/5
+        if shift_pressed {
+            if key == "3" or code == 51 {
+                if not alarm_active {
+                    trigger_alarm("MAC FULL SCREENSHOT (Cmd+Shift+3)")
+                }
+                -> yes
+            }
+            if key == "4" or code == 52 {
+                if not alarm_active {
+                    trigger_alarm("MAC AREA SCREENSHOT (Cmd+Shift+4)")
+                }
+                -> yes
+            }
+            if key == "5" or code == 53 {
+                if not alarm_active {
+                    trigger_alarm("MAC SCREENSHOT UTILITY (Cmd+Shift+5)")
+                }
+                -> yes
+            }
+        }
+    }
+    
+    # Linux: Ctrl+Alt+S
+    if ctrl_pressed and alt_pressed and (key == "s" or key == "S" or code == 83) {
+        if not alarm_active {
+            trigger_alarm("LINUX SCREENSHOT (Ctrl+Alt+S)")
+        }
+        -> yes
+    }
+    
+    -> no
+}
+
+# ============================================================================
+# Main Monitoring Loop
+# ============================================================================
+
+clear_display()
+say("============================================================")
+say("  SECURITY SCREEN CAPTURE MONITOR - CROSS-PLATFORM")
+say("============================================================")
+say("")
+say("  Status: [MONITORING]")
+say("  Protection: ENABLED")
+say("  Mode: Background Security Monitor")
+say("")
+say("  Monitoring for ALL PLATFORMS:")
+say("")
+say("  WINDOWS:")
+say("    - Print Screen (all variants)")
+say("    - Win+Shift+S (Snipping Tool)")
+say("    - Win+G (Game Bar)")
+say("    - Win+Alt+R (Recording)")
+say("    - Win+P (Projection)")
+say("")
+say("  MACOS:")
+say("    - Cmd+Shift+3 (Full screenshot)")
+say("    - Cmd+Shift+4 (Area screenshot)")
+say("    - Cmd+Shift+5 (Screenshot utility)")
+say("")
+say("  LINUX / ARCH LINUX:")
+say("    - PrintScreen / Print / SysRq (full)")
+say("    - Shift+PrintScreen (area)")
+say("    - Alt+PrintScreen (window)")
+say("    - Ctrl+Alt+PrintScreen (clipboard)")
+say("    - Ctrl+Shift+PrintScreen (Gnome Screenshot)")
+say("    - Super+P (KDE Spectacle)")
+say("    - Super+Shift+S (KDE Spectacle area)")
+say("    - Ctrl+Alt+S (various distros)")
+say("")
+say("  KEY CODES BEING MONITORED:")
+say("    - Codes 44, 99, 107: PrintScreen/Print/SysRq")
+say("    - Code 16: Shift")
+say("    - Code 17: Ctrl")
+say("    - Code 18: Alt")
+say("    - Codes 91, 133, 134: Win/Meta/Super")
+say("    - Codes 51-53: 3, 4, 5 (Mac screenshots)")
+say("    - Codes 71, 80, 82, 83: G, P, R, S (Win combos)")
+say("")
+say("  Press 'Q' to quit monitoring")
+say("============================================================")
+say("")
+
+ok <- input.enable_raw()
+if not ok {
+    say("[X] Failed to enable raw input mode.")
+    say("[X] Cannot start security monitoring.")
+    -> 1
+}
+
+monitoring <- yes
+last_status_time <- datetime.epoch_ms()
+
+say(">>> Security monitoring started...")
+say(">>> Background monitoring active")
+say(">>> ALL KEY PRESSES WILL BE LOGGED FOR DEBUGGING")
+say(">>> Platform: Linux (Arch Linux compatible)")
+say("")
+say(">>> IMPORTANT: Press any key to see what codes are detected")
+say(">>> Try pressing PrintScreen, Super, Shift, etc.")
+say("")
+say(">>> Testing audio system...")
+try {
+    os.Audio.play_tone(1000.0, 0.2, 0.5)
+    say(">>> Audio test: OK - Beeping will work")
+} catch e {
+    say(">>> Audio test: FAILED - " + str(e))
+    say(">>> Visual alerts only will be used")
+}
+say("")
+
+# Main monitoring loop
+while monitoring {
+    current_time <- datetime.epoch_ms()
+    
+    # Poll for key events
+    r <- input.poll()
+    if r["ok"] == yes {
+        key <- r["key"]
+        code <- r["code"]
+        
+        # Check if type field exists, default to "press" if not
+        event_type <- "press"
+        if contains(r, "type") {
+            event_type <- r["type"]
+        }
+        
+        # Log the key event
+        log_key_event(key, code, event_type)
+        
+        # Check for quit command
+        if key == "q" and event_type == "press" {
+            say("")
+            say(">>> Security monitoring stopped by user")
+            monitoring <- no
+            break
+        }
+        
+        # Track modifier keys - BOTH press and release
+        # Ctrl key (code 17)
+        if code == 17 {
+            if event_type == "press" {
+                ctrl_pressed <- yes
+                say(">>> CTRL PRESSED")
+            } else {
+                ctrl_pressed <- no
+                say(">>> CTRL RELEASED")
+            }
+        }
+        
+        # Shift key (code 16)
+        if code == 16 {
+            if event_type == "press" {
+                shift_pressed <- yes
+                say(">>> SHIFT PRESSED")
+            } else {
+                shift_pressed <- no
+                say(">>> SHIFT RELEASED")
+            }
+        }
+        
+        # Alt key (code 18)
+        if code == 18 {
+            if event_type == "press" {
+                alt_pressed <- yes
+                say(">>> ALT PRESSED")
+            } else {
+                alt_pressed <- no
+                say(">>> ALT RELEASED")
+            }
+        }
+        
+        # Win/Meta/Super key (codes 91, 133, 134)
+        if code == 91 or code == 133 or code == 134 {
+            if event_type == "press" {
+                win_pressed <- yes
+                meta_pressed <- yes
+                say(">>> WIN/META/SUPER PRESSED (code " + str(code) + ")")
+            } else {
+                win_pressed <- no
+                meta_pressed <- no
+                say(">>> WIN/META/SUPER RELEASED (code " + str(code) + ")")
+            }
+        }
+        
+        # Check for screenshot combinations on KEY PRESS only (if not already alarming)
+        if not alarm_active and event_type == "press" {
+            detected <- check_screenshot_combo(key, code)
+        }
+    }
+    
+    # If alarm is active, trigger CONTINUOUS beeping and flashing
+    if alarm_active {
+        # Beep the alarm
+        if ALARM_ENABLED {
+            beep_alarm()
+        }
+        
+        # Flash the screen
+        if FLASH_ENABLED {
+            flash_screen()
+        }
+    }
+    
+    # Status update every 5 seconds (if no alarm)
+    if not alarm_active {
+        time_since_status <- current_time - last_status_time
+        if time_since_status > 5000 {
+            say(">>> [" + str(current_time) + "] Monitoring... (Status: OK)")
+            say(">>> Modifiers: Ctrl=" + str(ctrl_pressed) + " Shift=" + str(shift_pressed) + " Alt=" + str(alt_pressed) + " Win=" + str(win_pressed))
+            last_status_time <- current_time
+            
+            # Reset modifier keys if no input for a while
+            ctrl_pressed <- no
+            shift_pressed <- no
+            alt_pressed <- no
+            win_pressed <- no
+            meta_pressed <- no
+        }
+    }
+    
+    # Sleep to prevent CPU overuse (much shorter sleep when alarm active for faster flashing)
+    if alarm_active {
+        datetime.sleep_ms(80)  # Very fast flashing when alarm active
+    } else {
+        datetime.sleep_ms(10)  # Fast polling for responsive detection
+    }
+}
+
+# Cleanup
+input.disable_raw()
+clear_display()
+say("")
+say("============================================================")
+say("  SECURITY MONITOR - STOPPED")
+say("============================================================")
+say("")
+
+if threat_detected {
+    say("  [!!!] THREAT WAS DETECTED DURING SESSION [!!!]")
+    say("  Threat Type: " + threat_type)
+    say("")
+}
+
+say("  Session ended.")
+say("============================================================")
+say("")

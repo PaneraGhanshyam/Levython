@@ -1,0 +1,114 @@
+# ============================================================================
+# COLORFUL WELCOME SCREEN
+# ============================================================================
+#
+# A beautiful welcome screen demonstrating Levython's color module
+#
+# Run with: ./levython examples/color_welcome.levy
+# ============================================================================
+
+import color
+
+# Clear screen
+say("\n" * 50)
+
+# Header
+say("")
+say(color.bold(color.bright_cyan("    ╔═══════════════════════════════════════════════════════════════════╗")))
+say(color.bold(color.bright_cyan("    ║")) + color.bold(color.bright_yellow("                                                                       ")) + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("    ║")) + color.bold(color.bright_yellow("               WELCOME TO LEVYTHON! 🚀                                 ")) + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("    ║")) + color.bold(color.bright_white("               High Performance Programming                            ")) + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("    ║")) + color.bold(color.bright_yellow("                                                                       ")) + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("    ╚═══════════════════════════════════════════════════════════════════╝")))
+say("")
+
+# Rainbow banner
+rainbow_text <- color.red("L") + color.bright_red("E") + color.yellow("V") +
+                color.bright_yellow("Y") + color.green("T") + color.bright_green("H") +
+                color.cyan("O") + color.bright_cyan("N")
+say("                    " + color.bold(rainbow_text) + " " + color.bright_white("with") + " " + color.bold(color.bright_magenta("COLORS")) + "! 🎨")
+say("")
+
+# Feature list
+say(color.bright_white("    ✨ Features:"))
+say("")
+say(color.green("       ✓") + " " + color.bright_white("Built-in Color Support") + color.dim(" - Like Python's colorama"))
+say(color.green("       ✓") + " " + color.bright_white("24-bit RGB Colors") + color.dim(" - 16 million colors"))
+say(color.green("       ✓") + " " + color.bright_white("Text Styles") + color.dim(" - Bold, italic, underline, and more"))
+say(color.green("       ✓") + " " + color.bright_white("Background Colors") + color.dim(" - Full background color support"))
+say(color.green("       ✓") + " " + color.bright_white("Easy to Use") + color.dim(" - Simple, intuitive API"))
+say("")
+
+# Examples section
+say(color.bright_white("    📚 Quick Examples:"))
+say("")
+
+# Example 1
+say(color.dim("       1. ") + color.bright_cyan("Basic colors:"))
+say(color.dim("          ") + color.red("color.red(") + color.yellow("\"Hello\"") + color.red(")"))
+say(color.dim("          → ") + color.red("Hello"))
+say("")
+
+# Example 2
+say(color.dim("       2. ") + color.bright_cyan("Combine styles:"))
+say(color.dim("          ") + color.green("color.bold(") + color.blue("color.green(") + color.yellow("\"Success!\"") + color.blue(")") + color.green(")"))
+say(color.dim("          → ") + color.bold(color.green("Success!")))
+say("")
+
+# Example 3
+say(color.dim("       3. ") + color.bright_cyan("RGB colors:"))
+say(color.dim("          ") + color.magenta("color.rgb(") + color.yellow("255, 100, 0, \"Orange\"") + color.magenta(")"))
+say(color.dim("          → ") + color.rgb(255, 100, 0, "Orange"))
+say("")
+
+# Color palette showcase
+say(color.bright_white("    🎨 Color Palette:"))
+say("")
+say("       " + color.red("█") + color.bright_red("█") + " " +
+    color.green("█") + color.bright_green("█") + " " +
+    color.yellow("█") + color.bright_yellow("█") + " " +
+    color.blue("█") + color.bright_blue("█") + " " +
+    color.magenta("█") + color.bright_magenta("█") + " " +
+    color.cyan("█") + color.bright_cyan("█") + " " +
+    color.white("█") + color.bright_white("█"))
+say("")
+say(color.dim("       Standard      Bright"))
+say("")
+
+# Status indicators
+say(color.bright_white("    💡 Status Indicators:"))
+say("")
+say("       " + color.green("✓") + " " + color.bold(color.green("SUCCESS")) + color.dim(" - Everything is working"))
+say("       " + color.yellow("⚠") + " " + color.bold(color.yellow("WARNING")) + color.dim(" - Something needs attention"))
+say("       " + color.red("✗") + " " + color.bold(color.red("ERROR")) + color.dim(" - Something went wrong"))
+say("       " + color.blue("ℹ") + " " + color.bold(color.blue("INFO")) + color.dim(" - Helpful information"))
+say("")
+
+# Progress bar example
+say(color.bright_white("    📊 Progress Bar Example:"))
+say("")
+say("       Loading... [" + color.green("████████████████") + color.dim("░░░░") + "] " + color.bright_cyan("80%"))
+say("")
+
+# Gaming UI preview
+say(color.bright_white("    🎮 Gaming UI Example:"))
+say("")
+say("       " + color.bright_white("Health: ") + color.red("❤❤❤❤❤") + color.dim("♡♡♡♡♡"))
+say("       " + color.bright_white("Mana:   ") + color.blue("██████████") + color.dim("░░░░░░░░░░"))
+say("       " + color.bright_white("Score:  ") + color.bright_yellow("1,337") + " pts")
+say("")
+
+# Call to action
+say(color.bright_white("    🚀 Get Started:"))
+say("")
+say(color.dim("       import ") + color.bright_cyan("color"))
+say("")
+say(color.dim("       ") + color.green("say(") + color.yellow("color.green(") + color.red("\"Ready to create something awesome!\"") + color.yellow(")") + color.green(")"))
+say("")
+
+# Footer
+say(color.bold(color.bright_cyan("    ═══════════════════════════════════════════════════════════════════")))
+say(color.bright_white("                      Built with ") + color.red("❤") + color.bright_white("  in Levython"))
+say(color.dim("                   Run: ") + color.bright_yellow("levython examples/color_demo.levy"))
+say(color.bold(color.bright_cyan("    ═══════════════════════════════════════════════════════════════════")))
+say("")

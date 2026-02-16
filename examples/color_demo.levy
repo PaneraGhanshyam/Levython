@@ -1,0 +1,249 @@
+# ============================================================================
+# LEVYTHON COLOR MODULE DEMO
+# ============================================================================
+#
+# A comprehensive demonstration of Levython's built-in color module
+# showing all available colors, styles, and combinations.
+#
+# Run with: ./levython examples/color_demo.levy
+# ============================================================================
+
+import color
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+act print_header(title) {
+    say("")
+    say(color.bold(color.bright_cyan("═" * 80)))
+    say(color.bold(color.bright_yellow("  " + title)))
+    say(color.bold(color.bright_cyan("═" * 80)))
+    say("")
+}
+
+act print_subheader(title) {
+    say("")
+    say(color.bright_white("━━ " + title + " ━━"))
+    say("")
+}
+
+# ============================================================================
+# Main Demo
+# ============================================================================
+
+# Title
+say("")
+say(color.bold(color.bright_cyan("╔" + "═" * 78 + "╗")))
+say(color.bold(color.bright_cyan("║")) + color.bold(color.bright_yellow("                    LEVYTHON COLOR MODULE DEMO                             ")) + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("║")) + color.bright_white("              Like Python's colorama, but built-in! 🎨                     ") + color.bold(color.bright_cyan("║")))
+say(color.bold(color.bright_cyan("╚" + "═" * 78 + "╝")))
+
+# ============================================================================
+# Basic Colors
+# ============================================================================
+print_header("1. BASIC FOREGROUND COLORS")
+
+say(color.red("    ██████  RED"))
+say(color.green("    ██████  GREEN"))
+say(color.yellow("    ██████  YELLOW"))
+say(color.blue("    ██████  BLUE"))
+say(color.magenta("    ██████  MAGENTA"))
+say(color.cyan("    ██████  CYAN"))
+say(color.white("    ██████  WHITE"))
+say(color.black("    ██████  BLACK") + color.dim(" (may be hard to see)"))
+
+# ============================================================================
+# Bright Colors
+# ============================================================================
+print_header("2. BRIGHT FOREGROUND COLORS")
+
+say(color.bright_red("    ██████  BRIGHT RED"))
+say(color.bright_green("    ██████  BRIGHT GREEN"))
+say(color.bright_yellow("    ██████  BRIGHT YELLOW"))
+say(color.bright_blue("    ██████  BRIGHT BLUE"))
+say(color.bright_magenta("    ██████  BRIGHT MAGENTA"))
+say(color.bright_cyan("    ██████  BRIGHT CYAN"))
+say(color.bright_white("    ██████  BRIGHT WHITE"))
+
+# ============================================================================
+# Background Colors
+# ============================================================================
+print_header("3. BACKGROUND COLORS")
+
+say(color.bg_red("   RED BACKGROUND   ") + "  " + color.bg_red(color.white("White text on red")))
+say(color.bg_green("   GREEN BACKGROUND   ") + "  " + color.bg_green(color.black("Black text on green")))
+say(color.bg_yellow("   YELLOW BACKGROUND   ") + "  " + color.bg_yellow(color.black("Black text on yellow")))
+say(color.bg_blue("   BLUE BACKGROUND   ") + "  " + color.bg_blue(color.white("White text on blue")))
+say(color.bg_magenta("   MAGENTA BACKGROUND   ") + "  " + color.bg_magenta(color.white("White text on magenta")))
+say(color.bg_cyan("   CYAN BACKGROUND   ") + "  " + color.bg_cyan(color.black("Black text on cyan")))
+say(color.bg_white("   WHITE BACKGROUND   ") + "  " + color.bg_white(color.black("Black text on white")))
+
+# ============================================================================
+# Text Styles
+# ============================================================================
+print_header("4. TEXT STYLES")
+
+say(color.bold("    ✦ BOLD TEXT - Make text stand out"))
+say(color.dim("    ✦ DIM TEXT - Subtle, dimmed appearance"))
+say(color.italic("    ✦ ITALIC TEXT - Slanted text style"))
+say(color.underline("    ✦ UNDERLINED TEXT - With underline"))
+say(color.blink("    ✦ BLINKING TEXT - Attention grabbing (if supported)"))
+say(color.reverse("    ✦ REVERSED - Inverted colors"))
+
+# ============================================================================
+# RGB Colors
+# ============================================================================
+print_header("5. RGB CUSTOM COLORS (24-bit True Color)")
+
+say(color.rgb(255, 0, 0, "    ██████  RGB(255, 0, 0) - Pure Red"))
+say(color.rgb(255, 127, 0, "    ██████  RGB(255, 127, 0) - Orange"))
+say(color.rgb(255, 255, 0, "    ██████  RGB(255, 255, 0) - Yellow"))
+say(color.rgb(0, 255, 0, "    ██████  RGB(0, 255, 0) - Lime Green"))
+say(color.rgb(0, 255, 255, "    ██████  RGB(0, 255, 255) - Aqua"))
+say(color.rgb(0, 0, 255, "    ██████  RGB(0, 0, 255) - Pure Blue"))
+say(color.rgb(127, 0, 255, "    ██████  RGB(127, 0, 255) - Purple"))
+say(color.rgb(255, 0, 255, "    ██████  RGB(255, 0, 255) - Magenta"))
+say(color.rgb(255, 105, 180, "    ██████  RGB(255, 105, 180) - Hot Pink"))
+say(color.rgb(255, 192, 203, "    ██████  RGB(255, 192, 203) - Pink"))
+
+print_subheader("RGB Backgrounds")
+
+say(color.bg_rgb(139, 69, 19, "    BROWN BACKGROUND    ") + "  RGB(139, 69, 19)")
+say(color.bg_rgb(75, 0, 130, color.white("    INDIGO BACKGROUND   ")) + "  RGB(75, 0, 130)")
+say(color.bg_rgb(255, 140, 0, color.black("    DARK ORANGE BG      ")) + "  RGB(255, 140, 0)")
+
+# ============================================================================
+# Combinations
+# ============================================================================
+print_header("6. COMBINING STYLES")
+
+say(color.bold(color.red("    ⚡ Bold + Red")))
+say(color.bold(color.green("    ⚡ Bold + Green")))
+say(color.underline(color.blue("    ⚡ Underline + Blue")))
+say(color.italic(color.magenta("    ⚡ Italic + Magenta")))
+say(color.bold(color.italic(color.cyan("    ⚡ Bold + Italic + Cyan"))))
+say(color.bold(color.underline(color.yellow("    ⚡ Bold + Underline + Yellow"))))
+say(color.bg_blue(color.bright_yellow("    ⚡ Yellow on Blue Background")))
+say(color.bg_green(color.bold(color.white("    ⚡ Bold White on Green"))))
+say(color.bg_red(color.bold(color.bright_white("    ⚡ Bold Bright White on Red"))))
+
+# ============================================================================
+# Rainbow Text
+# ============================================================================
+print_header("7. RAINBOW TEXT 🌈")
+
+rainbow <- color.red("R") + color.bright_red("a") + color.yellow("i") +
+           color.bright_yellow("n") + color.green("b") + color.bright_green("o") +
+           color.cyan("w") + " " + color.bright_cyan("T") + color.blue("e") +
+           color.bright_blue("x") + color.magenta("t") + color.bright_magenta("!")
+
+say("    " + color.bold(rainbow))
+say("    " + color.underline(rainbow))
+say("    " + color.italic(rainbow))
+
+# ============================================================================
+# Practical Examples
+# ============================================================================
+print_header("8. PRACTICAL EXAMPLES")
+
+print_subheader("Status Messages")
+say("    " + color.green("✓") + " " + color.bold(color.green("SUCCESS")) + " - Operation completed successfully")
+say("    " + color.yellow("⚠") + " " + color.bold(color.yellow("WARNING")) + " - Low disk space detected")
+say("    " + color.red("✗") + " " + color.bold(color.red("ERROR")) + " - Failed to connect to server")
+say("    " + color.blue("ℹ") + " " + color.bold(color.blue("INFO")) + " - System update available")
+
+print_subheader("Progress Indicators")
+say("    Loading... [" + color.green("████████████████████") + "] " + color.bright_cyan("100%"))
+say("    Loading... [" + color.yellow("███████████████") + color.dim("░░░░░") + "] " + color.bright_cyan("75%"))
+say("    Loading... [" + color.red("██████████") + color.dim("░░░░░░░░░░") + "] " + color.bright_cyan("50%"))
+
+print_subheader("File Types")
+say("    " + color.blue("📁") + " " + color.bold(color.blue("folder/")) + "         - Directory")
+say("    " + color.green("📄") + " " + color.green("script.levy") + "      - Levython file")
+say("    " + color.red("📄") + " " + color.red("document.pdf") + "     - PDF document")
+say("    " + color.yellow("📄") + " " + color.yellow("data.json") + "       - JSON data")
+
+print_subheader("Log Levels")
+say(color.dim("    [2024-01-15 10:30:45] ") + color.blue("[INFO]") + "  Application started")
+say(color.dim("    [2024-01-15 10:30:46] ") + color.green("[DEBUG]") + " Initializing modules")
+say(color.dim("    [2024-01-15 10:30:47] ") + color.yellow("[WARN]") + "  High CPU usage detected")
+say(color.dim("    [2024-01-15 10:30:48] ") + color.red("[ERROR]") + " Connection timeout")
+say(color.dim("    [2024-01-15 10:30:49] ") + color.bold(color.red("[FATAL]")) + " System shutdown")
+
+# ============================================================================
+# ASCII Art
+# ============================================================================
+print_header("9. COLORED ASCII ART")
+
+say(color.bright_yellow("         ⭐"))
+say(color.bright_yellow("        ⭐⭐⭐"))
+say(color.bright_yellow("       ⭐⭐⭐⭐⭐"))
+say(color.green("         ║║║"))
+say(color.green("         ║║║"))
+say(color.bg_red(color.white("      🎁 GIFT 🎁")))
+
+say("")
+say(color.red("    ❤️") + color.yellow(" ❤️") + color.green(" ❤️") + color.cyan(" ❤️") + color.blue(" ❤️") + color.magenta(" ❤️"))
+
+say("")
+say(color.cyan("        ～～～～～"))
+say(color.blue("      ～～～～～～～～～"))
+say(color.bright_blue("    ～～～～～～～～～～～～～"))
+
+# ============================================================================
+# Gaming UI Example
+# ============================================================================
+print_header("10. GAMING UI EXAMPLE")
+
+say(color.bright_cyan("    ╔════════════════════════════════════════╗"))
+say(color.bright_cyan("    ║") + color.bold(color.bright_yellow(" 🎮 GAME STATUS                         ")) + color.bright_cyan("║"))
+say(color.bright_cyan("    ╠════════════════════════════════════════╣"))
+say(color.bright_cyan("    ║") + color.bright_white(" Player:  ") + color.bright_green("John Doe") + "                      " + color.bright_cyan("║"))
+say(color.bright_cyan("    ║") + color.bright_white(" Health:  ") + color.red("❤❤❤❤❤") + color.dim("♡♡♡♡♡") + "                " + color.bright_cyan("║"))
+say(color.bright_cyan("    ║") + color.bright_white(" Mana:    ") + color.blue("████████") + color.dim("░░") + "                " + color.bright_cyan("║"))
+say(color.bright_cyan("    ║") + color.bright_white(" Level:   ") + color.bright_yellow("25") + "                           " + color.bright_cyan("║"))
+say(color.bright_cyan("    ║") + color.bright_white(" Gold:    ") + color.yellow("🪙 1,337") + "                      " + color.bright_cyan("║"))
+say(color.bright_cyan("    ╚════════════════════════════════════════╝"))
+
+# ============================================================================
+# Color Palette
+# ============================================================================
+print_header("11. FULL COLOR PALETTE")
+
+print_subheader("Standard Colors vs Bright Colors")
+say("    " + color.red("RED") + "     " + color.bright_red("BRIGHT_RED"))
+say("    " + color.green("GREEN") + "   " + color.bright_green("BRIGHT_GREEN"))
+say("    " + color.yellow("YELLOW") + "  " + color.bright_yellow("BRIGHT_YELLOW"))
+say("    " + color.blue("BLUE") + "    " + color.bright_blue("BRIGHT_BLUE"))
+say("    " + color.magenta("MAGENTA") + " " + color.bright_magenta("BRIGHT_MAGENTA"))
+say("    " + color.cyan("CYAN") + "    " + color.bright_cyan("BRIGHT_CYAN"))
+say("    " + color.white("WHITE") + "   " + color.bright_white("BRIGHT_WHITE"))
+
+# ============================================================================
+# Ending
+# ============================================================================
+print_header("12. CONCLUSION")
+
+say(color.bright_white("    The color module provides:"))
+say(color.green("    ✓") + " 8 basic colors + 7 bright variants")
+say(color.green("    ✓") + " 8 background colors")
+say(color.green("    ✓") + " 7 text style modifiers")
+say(color.green("    ✓") + " 24-bit RGB color support")
+say(color.green("    ✓") + " Easy color combinations")
+say(color.green("    ✓") + " ANSI escape code handling")
+say("")
+say(color.bright_cyan("    Perfect for:"))
+say(color.yellow("    ★") + " Terminal UIs and menus")
+say(color.yellow("    ★") + " Game interfaces")
+say(color.yellow("    ★") + " Logging systems")
+say(color.yellow("    ★") + " Progress indicators")
+say(color.yellow("    ★") + " Status messages")
+say(color.yellow("    ★") + " Visual feedback")
+
+say("")
+say(color.bold(color.bright_cyan("═" * 80)))
+say(color.bold(color.bright_green("                    🎨 END OF COLOR DEMO 🎨")))
+say(color.bright_white("                  Use 'import color' in your code!"))
+say(color.bold(color.bright_cyan("═" * 80)))
+say("")

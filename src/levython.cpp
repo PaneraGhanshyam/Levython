@@ -248,6 +248,223 @@ namespace fs = std::filesystem;
  * Platform-specific implementations for Windows, macOS, and Linux
  */
 
+/* ===========================================================================
+ * UNICODE AND CHARACTER ENCODING SUPPORT
+ * ===========================================================================
+ * Ensures proper Unicode/UTF-8 support across Windows, Unix, Linux, and macOS
+ */
+
+namespace encoding {
+    /**
+     * Initializes console for UTF-8 output on Windows
+     * On Unix/Linux/macOS, UTF-8 is typically default
+     */
+    static void initialize_console_encoding() {
+        #ifdef _WIN32
+            // Set console code pages to UTF-8 (65001)
+            SetConsoleOutputCP(CP_UTF8);
+            SetConsoleCP(CP_UTF8);
+            
+            // Enable ANSI escape sequences for colored output
+            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (hOut != INVALID_HANDLE_VALUE) {
+                DWORD dwMode = 0;
+                if (GetConsoleMode(hOut, &dwMode)) {
+                    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+                    SetConsoleMode(hOut, dwMode);
+                }
+            }
+            
+            HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+            if (hIn != INVALID_HANDLE_VALUE) {
+                DWORD dwMode = 0;
+                if (GetConsoleMode(hIn, &dwMode)) {
+                    dwMode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+                    SetConsoleMode(hIn, dwMode);
+                }
+            }
+        #else
+            // On Unix-like systems, set locale to support UTF-8
+            setlocale(LC_ALL, "");
+            const char* utf8_locales[] = {
+                "en_US.UTF-8", "C.UTF-8", "en_GB.UTF-8", 
+                "en_CA.UTF-8", "UTF-8", NULL
+            };
+            for (int i = 0; utf8_locales[i] != NULL; i++) {
+                if (setlocale(LC_CTYPE, utf8_locales[i]) != NULL) {
+                    break;
+                }
+            }
+        #endif
+        
+        // Ensure C++ streams use the proper locale for UTF-8
+        try {
+            std::locale utf8_locale("");
+            std::cout.imbue(utf8_locale);
+            std::cerr.imbue(utf8_locale);
+            std::cin.imbue(utf8_locale);
+        } catch (...) {
+            // If locale setup fails, continue with default
+        }
+    }
+    
+    /**
+     * Validates if a string is valid UTF-8
+     */
+    static bool is_valid_utf8(const std::string& str) {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(str.data());
+        size_t len = str.length();
+        size_t i = 0;
+        
+        while (i < len) {
+            if (bytes[i] <= 0x7F) {
+                // ASCII character (0xxxxxxx)
+                i++;
+            } else if ((bytes[i] & 0xE0) == 0xC0) {
+                // 2-byte sequence (110xxxxx 10xxxxxx)
+                if (i + 1 >= len || (bytes[i + 1] & 0xC0) != 0x80) return false;
+                i += 2;
+            } else if ((bytes[i] & 0xF0) == 0xE0) {
+                // 3-byte sequence (1110xxxx 10xxxxxx 10xxxxxx)
+                if (i + 2 >= len || (bytes[i + 1] & 0xC0) != 0x80 || (bytes[i + 2] & 0xC0) != 0x80) return false;
+                i += 3;
+            } else if ((bytes[i] & 0xF8) == 0xF0) {
+                // 4-byte sequence (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
+                if (i + 3 >= len || (bytes[i + 1] & 0xC0) != 0x80 || 
+                    (bytes[i + 2] & 0xC0) != 0x80 || (bytes[i + 3] & 0xC0) != 0x80) return false;
+                i += 4;
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     * Ensures string is valid UTF-8, replacing invalid sequences with �
+     */
+    static std::string sanitize_utf8(const std::string& str) {
+        if (is_valid_utf8(str)) return str;
+        
+        std::string result;
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(str.data());
+        size_t len = str.length();
+        size_t i = 0;
+        
+        while (i < len) {
+            if (bytes[i] <= 0x7F) {
+                result += static_cast<char>(bytes[i]);
+                i++;
+            } else if ((bytes[i] & 0xE0) == 0xC0 && i + 1 < len && (bytes[i + 1] & 0xC0) == 0x80) {
+                result += static_cast<char>(bytes[i]);
+                result += static_cast<char>(bytes[i + 1]);
+                i += 2;
+            } else if ((bytes[i] & 0xF0) == 0xE0 && i + 2 < len && 
+                       (bytes[i + 1] & 0xC0) == 0x80 && (bytes[i + 2] & 0xC0) == 0x80) {
+                result += static_cast<char>(bytes[i]);
+                result += static_cast<char>(bytes[i + 1]);
+                result += static_cast<char>(bytes[i + 2]);
+                i += 3;
+            } else if ((bytes[i] & 0xF8) == 0xF0 && i + 3 < len && 
+                       (bytes[i + 1] & 0xC0) == 0x80 && (bytes[i + 2] & 0xC0) == 0x80 && 
+                       (bytes[i + 3] & 0xC0) == 0x80) {
+                result += static_cast<char>(bytes[i]);
+                result += static_cast<char>(bytes[i + 1]);
+                result += static_cast<char>(bytes[i + 2]);
+                result += static_cast<char>(bytes[i + 3]);
+                i += 4;
+            } else {
+                // Invalid UTF-8 sequence, replace with replacement character
+                result += "\xEF\xBF\xBD"; // UTF-8 for �
+                i++;
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Cross-platform safe output function that handles encoding
+     */
+    static void safe_print(const std::string& str) {
+        #ifdef _WIN32
+            // On Windows, ensure UTF-8 is properly handled
+            std::string sanitized = sanitize_utf8(str);
+            std::cout << sanitized;
+        #else
+            // On Unix-like systems, output directly
+            std::cout << str;
+        #endif
+    }
+    
+    /**
+     * Cross-platform safe error output function
+     */
+    static void safe_error(const std::string& str) {
+        #ifdef _WIN32
+            std::string sanitized = sanitize_utf8(str);
+            std::cerr << sanitized;
+        #else
+            std::cerr << str;
+        #endif
+    }
+    
+    /**
+     * Removes UTF-8 BOM (Byte Order Mark) from the beginning of a string
+     * BOM is the sequence: EF BB BF
+     */
+    static std::string remove_utf8_bom(const std::string& str) {
+        if (str.size() >= 3 && 
+            static_cast<unsigned char>(str[0]) == 0xEF &&
+            static_cast<unsigned char>(str[1]) == 0xBB &&
+            static_cast<unsigned char>(str[2]) == 0xBF) {
+            return str.substr(3);
+        }
+        return str;
+    }
+    
+    /**
+     * Reads a file with proper UTF-8 encoding support
+     * Handles BOM and ensures valid UTF-8 content
+     */
+    static std::string read_file_utf8(const std::string& filename) {
+        std::ifstream file(filename, std::ios::binary);
+        if (!file) {
+            throw std::runtime_error("Cannot open file: " + filename);
+        }
+        
+        std::string content((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+        
+        // Remove BOM if present
+        content = remove_utf8_bom(content);
+        
+        // Sanitize UTF-8 to ensure valid encoding
+        content = sanitize_utf8(content);
+        
+        return content;
+    }
+    
+    /**
+     * Writes a file with proper UTF-8 encoding support
+     * Optionally adds UTF-8 BOM for Windows compatibility
+     */
+    static void write_file_utf8(const std::string& filename, const std::string& content, bool add_bom = false) {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file) {
+            throw std::runtime_error("Cannot open file for writing: " + filename);
+        }
+        
+        // Add BOM if requested (useful for Windows applications)
+        if (add_bom) {
+            file.put(static_cast<char>(0xEF));
+            file.put(static_cast<char>(0xBB));
+            file.put(static_cast<char>(0xBF));
+        }
+        
+        file.write(content.data(), content.size());
+    }
+}
+
 // Cross-platform memory mapping functions
 #ifdef _WIN32
     inline void* platform_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset) {
@@ -2117,14 +2334,14 @@ public:
 static thread_local std::vector<StackFrame> g_call_stack;
 
 static void print_runtime_error(const RuntimeError& err) {
-    std::cerr << "Runtime Error: " << err.what() << std::endl;
+    encoding::safe_error("Runtime Error: " + std::string(err.what()) + "\n");
     if (err.line != 0) {
-        std::cerr << "  at <main> line " << err.line << std::endl;
+        encoding::safe_error("  at <main> line " + std::to_string(err.line) + "\n");
     }
     for (auto it = err.stack.rbegin(); it != err.stack.rend(); ++it) {
-        std::cerr << "  at " << it->function;
-        if (it->line != 0) std::cerr << " line " << it->line;
-        std::cerr << std::endl;
+        encoding::safe_error("  at " + it->function);
+        if (it->line != 0) encoding::safe_error(" line " + std::to_string(it->line));
+        encoding::safe_error("\n");
     }
 }
 
@@ -3092,6 +3309,44 @@ Value builtin_http_set_verify_ssl(const std::vector<Value> &args);
 Value create_http_module();
 } // namespace http_bindings
 
+namespace color_bindings {
+Value builtin_color_reset(const std::vector<Value> &args);
+Value builtin_color_red(const std::vector<Value> &args);
+Value builtin_color_green(const std::vector<Value> &args);
+Value builtin_color_yellow(const std::vector<Value> &args);
+Value builtin_color_blue(const std::vector<Value> &args);
+Value builtin_color_magenta(const std::vector<Value> &args);
+Value builtin_color_cyan(const std::vector<Value> &args);
+Value builtin_color_white(const std::vector<Value> &args);
+Value builtin_color_black(const std::vector<Value> &args);
+Value builtin_color_bright_red(const std::vector<Value> &args);
+Value builtin_color_bright_green(const std::vector<Value> &args);
+Value builtin_color_bright_yellow(const std::vector<Value> &args);
+Value builtin_color_bright_blue(const std::vector<Value> &args);
+Value builtin_color_bright_magenta(const std::vector<Value> &args);
+Value builtin_color_bright_cyan(const std::vector<Value> &args);
+Value builtin_color_bright_white(const std::vector<Value> &args);
+Value builtin_color_bg_red(const std::vector<Value> &args);
+Value builtin_color_bg_green(const std::vector<Value> &args);
+Value builtin_color_bg_yellow(const std::vector<Value> &args);
+Value builtin_color_bg_blue(const std::vector<Value> &args);
+Value builtin_color_bg_magenta(const std::vector<Value> &args);
+Value builtin_color_bg_cyan(const std::vector<Value> &args);
+Value builtin_color_bg_white(const std::vector<Value> &args);
+Value builtin_color_bg_black(const std::vector<Value> &args);
+Value builtin_color_bold(const std::vector<Value> &args);
+Value builtin_color_dim(const std::vector<Value> &args);
+Value builtin_color_italic(const std::vector<Value> &args);
+Value builtin_color_underline(const std::vector<Value> &args);
+Value builtin_color_blink(const std::vector<Value> &args);
+Value builtin_color_reverse(const std::vector<Value> &args);
+Value builtin_color_hidden(const std::vector<Value> &args);
+Value builtin_color_rgb(const std::vector<Value> &args);
+Value builtin_color_bg_rgb(const std::vector<Value> &args);
+Value builtin_color_colorize(const std::vector<Value> &args);
+Value create_color_module();
+} // namespace color_bindings
+
 namespace os_bindings {
 Value builtin_os_name(const std::vector<Value> &args);
 Value builtin_os_sep(const std::vector<Value> &args);
@@ -3376,6 +3631,340 @@ Value create_os_module();
 void set_cli_args(int argc, char* argv[]);
 } // namespace os_bindings
 
+// ============================================================================
+// Color Bindings Implementation
+// ============================================================================
+
+namespace color_bindings {
+
+// ANSI color codes
+#define ANSI_RESET "\033[0m"
+#define ANSI_BOLD "\033[1m"
+#define ANSI_DIM "\033[2m"
+#define ANSI_ITALIC "\033[3m"
+#define ANSI_UNDERLINE "\033[4m"
+#define ANSI_BLINK "\033[5m"
+#define ANSI_REVERSE "\033[7m"
+#define ANSI_HIDDEN "\033[8m"
+
+#define ANSI_BLACK "\033[30m"
+#define ANSI_RED "\033[31m"
+#define ANSI_GREEN "\033[32m"
+#define ANSI_YELLOW "\033[33m"
+#define ANSI_BLUE "\033[34m"
+#define ANSI_MAGENTA "\033[35m"
+#define ANSI_CYAN "\033[36m"
+#define ANSI_WHITE "\033[37m"
+
+#define ANSI_BRIGHT_BLACK "\033[90m"
+#define ANSI_BRIGHT_RED "\033[91m"
+#define ANSI_BRIGHT_GREEN "\033[92m"
+#define ANSI_BRIGHT_YELLOW "\033[93m"
+#define ANSI_BRIGHT_BLUE "\033[94m"
+#define ANSI_BRIGHT_MAGENTA "\033[95m"
+#define ANSI_BRIGHT_CYAN "\033[96m"
+#define ANSI_BRIGHT_WHITE "\033[97m"
+
+#define ANSI_BG_BLACK "\033[40m"
+#define ANSI_BG_RED "\033[41m"
+#define ANSI_BG_GREEN "\033[42m"
+#define ANSI_BG_YELLOW "\033[43m"
+#define ANSI_BG_BLUE "\033[44m"
+#define ANSI_BG_MAGENTA "\033[45m"
+#define ANSI_BG_CYAN "\033[46m"
+#define ANSI_BG_WHITE "\033[47m"
+
+Value builtin_color_reset(const std::vector<Value> &args) {
+    return Value(std::string(ANSI_RESET));
+}
+
+Value builtin_color_red(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_RED));
+    return Value(std::string(ANSI_RED) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_green(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_GREEN));
+    return Value(std::string(ANSI_GREEN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_yellow(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_YELLOW));
+    return Value(std::string(ANSI_YELLOW) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_blue(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BLUE));
+    return Value(std::string(ANSI_BLUE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_magenta(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_MAGENTA));
+    return Value(std::string(ANSI_MAGENTA) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_cyan(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_CYAN));
+    return Value(std::string(ANSI_CYAN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_white(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_WHITE));
+    return Value(std::string(ANSI_WHITE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_black(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BLACK));
+    return Value(std::string(ANSI_BLACK) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_red(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_RED));
+    return Value(std::string(ANSI_BRIGHT_RED) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_green(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_GREEN));
+    return Value(std::string(ANSI_BRIGHT_GREEN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_yellow(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_YELLOW));
+    return Value(std::string(ANSI_BRIGHT_YELLOW) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_blue(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_BLUE));
+    return Value(std::string(ANSI_BRIGHT_BLUE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_magenta(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_MAGENTA));
+    return Value(std::string(ANSI_BRIGHT_MAGENTA) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_cyan(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_CYAN));
+    return Value(std::string(ANSI_BRIGHT_CYAN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bright_white(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BRIGHT_WHITE));
+    return Value(std::string(ANSI_BRIGHT_WHITE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_red(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_RED));
+    return Value(std::string(ANSI_BG_RED) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_green(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_GREEN));
+    return Value(std::string(ANSI_BG_GREEN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_yellow(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_YELLOW));
+    return Value(std::string(ANSI_BG_YELLOW) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_blue(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_BLUE));
+    return Value(std::string(ANSI_BG_BLUE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_magenta(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_MAGENTA));
+    return Value(std::string(ANSI_BG_MAGENTA) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_cyan(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_CYAN));
+    return Value(std::string(ANSI_BG_CYAN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_white(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_WHITE));
+    return Value(std::string(ANSI_BG_WHITE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bg_black(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BG_BLACK));
+    return Value(std::string(ANSI_BG_BLACK) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_bold(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BOLD));
+    return Value(std::string(ANSI_BOLD) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_dim(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_DIM));
+    return Value(std::string(ANSI_DIM) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_italic(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_ITALIC));
+    return Value(std::string(ANSI_ITALIC) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_underline(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_UNDERLINE));
+    return Value(std::string(ANSI_UNDERLINE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_blink(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_BLINK));
+    return Value(std::string(ANSI_BLINK) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_reverse(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_REVERSE));
+    return Value(std::string(ANSI_REVERSE) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_hidden(const std::vector<Value> &args) {
+    if (args.empty()) return Value(std::string(ANSI_HIDDEN));
+    return Value(std::string(ANSI_HIDDEN) + args[0].to_string() + ANSI_RESET);
+}
+
+Value builtin_color_rgb(const std::vector<Value> &args) {
+    if (args.size() < 3) {
+        throw std::runtime_error("rgb() requires 3 arguments: r, g, b (0-255)");
+    }
+    int r = args[0].type == ObjectType::INTEGER ? static_cast<int>(args[0].data.integer) : static_cast<int>(args[0].data.floating);
+    int g = args[1].type == ObjectType::INTEGER ? static_cast<int>(args[1].data.integer) : static_cast<int>(args[1].data.floating);
+    int b = args[2].type == ObjectType::INTEGER ? static_cast<int>(args[2].data.integer) : static_cast<int>(args[2].data.floating);
+    
+    // Clamp values
+    r = std::max(0, std::min(255, r));
+    g = std::max(0, std::min(255, g));
+    b = std::max(0, std::min(255, b));
+    
+    std::string code = "\033[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    
+    if (args.size() >= 4) {
+        return Value(code + args[3].to_string() + ANSI_RESET);
+    }
+    return Value(code);
+}
+
+Value builtin_color_bg_rgb(const std::vector<Value> &args) {
+    if (args.size() < 3) {
+        throw std::runtime_error("bg_rgb() requires 3 arguments: r, g, b (0-255)");
+    }
+    int r = args[0].type == ObjectType::INTEGER ? static_cast<int>(args[0].data.integer) : static_cast<int>(args[0].data.floating);
+    int g = args[1].type == ObjectType::INTEGER ? static_cast<int>(args[1].data.integer) : static_cast<int>(args[1].data.floating);
+    int b = args[2].type == ObjectType::INTEGER ? static_cast<int>(args[2].data.integer) : static_cast<int>(args[2].data.floating);
+    
+    // Clamp values
+    r = std::max(0, std::min(255, r));
+    g = std::max(0, std::min(255, g));
+    b = std::max(0, std::min(255, b));
+    
+    std::string code = "\033[48;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+    
+    if (args.size() >= 4) {
+        return Value(code + args[3].to_string() + ANSI_RESET);
+    }
+    return Value(code);
+}
+
+Value builtin_color_colorize(const std::vector<Value> &args) {
+    if (args.size() < 2) {
+        throw std::runtime_error("colorize() requires 2 arguments: text, color_name");
+    }
+    
+    std::string text = args[0].to_string();
+    std::string color = args[1].to_string();
+    
+    std::string code;
+    if (color == "red") code = ANSI_RED;
+    else if (color == "green") code = ANSI_GREEN;
+    else if (color == "yellow") code = ANSI_YELLOW;
+    else if (color == "blue") code = ANSI_BLUE;
+    else if (color == "magenta") code = ANSI_MAGENTA;
+    else if (color == "cyan") code = ANSI_CYAN;
+    else if (color == "white") code = ANSI_WHITE;
+    else if (color == "black") code = ANSI_BLACK;
+    else code = ANSI_RESET;
+    
+    return Value(code + text + ANSI_RESET);
+}
+
+Value create_color_module() {
+    Value color_module(ObjectType::MAP);
+    
+    auto add_builtin = [&](const char *name, const char *builtin_name, std::vector<std::string> params) {
+        Value func(ObjectType::FUNCTION);
+        func.data.function = Value::Data::Function(name, std::move(params));
+        func.data.function.is_builtin = true;
+        func.data.function.builtin_name = builtin_name;
+        color_module.data.map[name] = func;
+    };
+    
+    // Basic colors
+    add_builtin("red", "color_red", {"text"});
+    add_builtin("green", "color_green", {"text"});
+    add_builtin("yellow", "color_yellow", {"text"});
+    add_builtin("blue", "color_blue", {"text"});
+    add_builtin("magenta", "color_magenta", {"text"});
+    add_builtin("cyan", "color_cyan", {"text"});
+    add_builtin("white", "color_white", {"text"});
+    add_builtin("black", "color_black", {"text"});
+    
+    // Bright colors
+    add_builtin("bright_red", "color_bright_red", {"text"});
+    add_builtin("bright_green", "color_bright_green", {"text"});
+    add_builtin("bright_yellow", "color_bright_yellow", {"text"});
+    add_builtin("bright_blue", "color_bright_blue", {"text"});
+    add_builtin("bright_magenta", "color_bright_magenta", {"text"});
+    add_builtin("bright_cyan", "color_bright_cyan", {"text"});
+    add_builtin("bright_white", "color_bright_white", {"text"});
+    
+    // Background colors
+    add_builtin("bg_red", "color_bg_red", {"text"});
+    add_builtin("bg_green", "color_bg_green", {"text"});
+    add_builtin("bg_yellow", "color_bg_yellow", {"text"});
+    add_builtin("bg_blue", "color_bg_blue", {"text"});
+    add_builtin("bg_magenta", "color_bg_magenta", {"text"});
+    add_builtin("bg_cyan", "color_bg_cyan", {"text"});
+    add_builtin("bg_white", "color_bg_white", {"text"});
+    add_builtin("bg_black", "color_bg_black", {"text"});
+    
+    // Text styles
+    add_builtin("bold", "color_bold", {"text"});
+    add_builtin("dim", "color_dim", {"text"});
+    add_builtin("italic", "color_italic", {"text"});
+    add_builtin("underline", "color_underline", {"text"});
+    add_builtin("blink", "color_blink", {"text"});
+    add_builtin("reverse", "color_reverse", {"text"});
+    add_builtin("hidden", "color_hidden", {"text"});
+    
+    // RGB colors
+    add_builtin("rgb", "color_rgb", {"r", "g", "b", "text"});
+    add_builtin("bg_rgb", "color_bg_rgb", {"r", "g", "b", "text"});
+    
+    // Utility
+    add_builtin("reset", "color_reset", {});
+    add_builtin("colorize", "color_colorize", {"text", "color"});
+    
+    // Color constants
+    color_module.data.map["RESET"] = Value(std::string(ANSI_RESET));
+    color_module.data.map["RED"] = Value(std::string(ANSI_RED));
+    color_module.data.map["GREEN"] = Value(std::string(ANSI_GREEN));
+    color_module.data.map["YELLOW"] = Value(std::string(ANSI_YELLOW));
+    color_module.data.map["BLUE"] = Value(std::string(ANSI_BLUE));
+    color_module.data.map["MAGENTA"] = Value(std::string(ANSI_MAGENTA));
+    color_module.data.map["CYAN"] = Value(std::string(ANSI_CYAN));
+    color_module.data.map["WHITE"] = Value(std::string(ANSI_WHITE));
+    color_module.data.map["BLACK"] = Value(std::string(ANSI_BLACK));
+    
+    return color_module;
+}
+
+} // namespace color_bindings
+
 namespace fs_bindings {
 Value builtin_fs_exists(const std::vector<Value>& args);
 Value builtin_fs_is_file(const std::vector<Value>& args);
@@ -3556,7 +4145,7 @@ class Interpreter {
 
     Value builtin_say(const std::vector<Value>& args) {
         if (args.size() != 1) throw std::runtime_error("say() expects 1 argument.");
-        std::cout << args[0].to_string() << std::endl;
+        encoding::safe_print(args[0].to_string() + "\n");
         std::cout.flush();
         return Value();
     }
@@ -3993,8 +4582,8 @@ class Interpreter {
     // Print function without newline
     Value builtin_print(const std::vector<Value>& args) {
         for (size_t i = 0; i < args.size(); i++) {
-            std::cout << args[i].to_string();
-            if (i < args.size() - 1) std::cout << " ";
+            encoding::safe_print(args[i].to_string());
+            if (i < args.size() - 1) encoding::safe_print(" ");
         }
         return Value();
     }
@@ -4002,10 +4591,11 @@ class Interpreter {
     // Print function with newline (alias for say)
     Value builtin_println(const std::vector<Value>& args) {
         for (size_t i = 0; i < args.size(); i++) {
-            std::cout << args[i].to_string();
-            if (i < args.size() - 1) std::cout << " ";
+            encoding::safe_print(args[i].to_string());
+            if (i < args.size() - 1) encoding::safe_print(" ");
         }
-        std::cout << std::endl;
+        encoding::safe_print("\n");
+        std::cout.flush();
         return Value();
     }
 
@@ -4610,6 +5200,9 @@ class Interpreter {
 
 public:
     Interpreter() {
+        // Initialize Unicode/UTF-8 console support
+        encoding::initialize_console_encoding();
+        
         std::ios::sync_with_stdio(false);
         std::cin.tie(nullptr);
         std::cout.tie(nullptr);
@@ -4718,6 +5311,11 @@ public:
         global->define("http", http_module);
         modules_cache["http"] = http_module;
 
+        // Register color module
+        Value color_module = color_bindings::create_color_module();
+        global->define("color", color_module);
+        modules_cache["color"] = color_module;
+        
         // Register OS module
         Value os_module = os_bindings::create_os_module();
         
@@ -5991,6 +6589,42 @@ Value Interpreter::call_method(Value& instance,
         if (name == "os_inputcontrol_send_touch_event") return os_bindings::builtin_os_inputcontrol_send_touch_event(args);
         if (name == "os_inputcontrol_clear_input_buffer") return os_bindings::builtin_os_inputcontrol_clear_input_buffer(args);
         if (name == "os_inputcontrol_is_capturing") return os_bindings::builtin_os_inputcontrol_is_capturing(args);
+        
+        // Color module builtins
+        if (name == "color_reset") return color_bindings::builtin_color_reset(args);
+        if (name == "color_red") return color_bindings::builtin_color_red(args);
+        if (name == "color_green") return color_bindings::builtin_color_green(args);
+        if (name == "color_yellow") return color_bindings::builtin_color_yellow(args);
+        if (name == "color_blue") return color_bindings::builtin_color_blue(args);
+        if (name == "color_magenta") return color_bindings::builtin_color_magenta(args);
+        if (name == "color_cyan") return color_bindings::builtin_color_cyan(args);
+        if (name == "color_white") return color_bindings::builtin_color_white(args);
+        if (name == "color_black") return color_bindings::builtin_color_black(args);
+        if (name == "color_bright_red") return color_bindings::builtin_color_bright_red(args);
+        if (name == "color_bright_green") return color_bindings::builtin_color_bright_green(args);
+        if (name == "color_bright_yellow") return color_bindings::builtin_color_bright_yellow(args);
+        if (name == "color_bright_blue") return color_bindings::builtin_color_bright_blue(args);
+        if (name == "color_bright_magenta") return color_bindings::builtin_color_bright_magenta(args);
+        if (name == "color_bright_cyan") return color_bindings::builtin_color_bright_cyan(args);
+        if (name == "color_bright_white") return color_bindings::builtin_color_bright_white(args);
+        if (name == "color_bg_red") return color_bindings::builtin_color_bg_red(args);
+        if (name == "color_bg_green") return color_bindings::builtin_color_bg_green(args);
+        if (name == "color_bg_yellow") return color_bindings::builtin_color_bg_yellow(args);
+        if (name == "color_bg_blue") return color_bindings::builtin_color_bg_blue(args);
+        if (name == "color_bg_magenta") return color_bindings::builtin_color_bg_magenta(args);
+        if (name == "color_bg_cyan") return color_bindings::builtin_color_bg_cyan(args);
+        if (name == "color_bg_white") return color_bindings::builtin_color_bg_white(args);
+        if (name == "color_bg_black") return color_bindings::builtin_color_bg_black(args);
+        if (name == "color_bold") return color_bindings::builtin_color_bold(args);
+        if (name == "color_dim") return color_bindings::builtin_color_dim(args);
+        if (name == "color_italic") return color_bindings::builtin_color_italic(args);
+        if (name == "color_underline") return color_bindings::builtin_color_underline(args);
+        if (name == "color_blink") return color_bindings::builtin_color_blink(args);
+        if (name == "color_reverse") return color_bindings::builtin_color_reverse(args);
+        if (name == "color_hidden") return color_bindings::builtin_color_hidden(args);
+        if (name == "color_rgb") return color_bindings::builtin_color_rgb(args);
+        if (name == "color_bg_rgb") return color_bindings::builtin_color_bg_rgb(args);
+        if (name == "color_colorize") return color_bindings::builtin_color_colorize(args);
         
         // OS.ProcessManager submodule builtins
         if (name == "os_processes_list") return os_bindings::builtin_os_processes_list(args);
@@ -21969,6 +22603,7 @@ class FastVM {
     // Name->interned string cache for fast global resolution
     std::unordered_map<std::string, ObjString*> name_cache;
     ObjMap* http_module_map = nullptr;
+    ObjMap* color_module_map = nullptr;
     ObjMap* os_module_map = nullptr;
     ObjMap* os_hooks_module_map = nullptr;
     ObjMap* os_inputcontrol_module_map = nullptr;
@@ -22144,7 +22779,64 @@ public:
         add_method("set_verify_ssl");
         return http_module_map;
     }
+    
+    ObjMap* ensure_color_module() {
+        if (color_module_map) return color_module_map;
 
+        color_module_map = ObjMap::create();
+        auto add_method = [&](const char* name) {
+            color_module_map->data[g_strings.intern(name)] = val_string(name);
+        };
+
+        add_method("red");
+        add_method("green");
+        add_method("yellow");
+        add_method("blue");
+        add_method("magenta");
+        add_method("cyan");
+        add_method("white");
+        add_method("black");
+        add_method("bright_red");
+        add_method("bright_green");
+        add_method("bright_yellow");
+        add_method("bright_blue");
+        add_method("bright_magenta");
+        add_method("bright_cyan");
+        add_method("bright_white");
+        add_method("bg_red");
+        add_method("bg_green");
+        add_method("bg_yellow");
+        add_method("bg_blue");
+        add_method("bg_magenta");
+        add_method("bg_cyan");
+        add_method("bg_white");
+        add_method("bg_black");
+        add_method("bold");
+        add_method("dim");
+        add_method("italic");
+        add_method("underline");
+        add_method("blink");
+        add_method("reverse");
+        add_method("hidden");
+        add_method("rgb");
+        add_method("bg_rgb");
+        add_method("reset");
+        add_method("colorize");
+
+        // Add color constants
+        color_module_map->data[g_strings.intern("RESET")] = val_string("\033[0m");
+        color_module_map->data[g_strings.intern("RED")] = val_string("\033[31m");
+        color_module_map->data[g_strings.intern("GREEN")] = val_string("\033[32m");
+        color_module_map->data[g_strings.intern("YELLOW")] = val_string("\033[33m");
+        color_module_map->data[g_strings.intern("BLUE")] = val_string("\033[34m");
+        color_module_map->data[g_strings.intern("MAGENTA")] = val_string("\033[35m");
+        color_module_map->data[g_strings.intern("CYAN")] = val_string("\033[36m");
+        color_module_map->data[g_strings.intern("WHITE")] = val_string("\033[37m");
+        color_module_map->data[g_strings.intern("BLACK")] = val_string("\033[30m");
+
+        return color_module_map;
+    }
+    
     ObjMap* ensure_os_module() {
         if (os_module_map) return os_module_map;
 
@@ -22539,6 +23231,45 @@ public:
         if (method_name == "set_verify_ssl")
             return http_bindings::builtin_http_set_verify_ssl(args);
         throw std::runtime_error("Unknown http method: " + method_name);
+    }
+
+    Value call_color_builtin(const std::string& method_name,
+                             const std::vector<Value>& args) {
+        if (method_name == "red") return color_bindings::builtin_color_red(args);
+        if (method_name == "green") return color_bindings::builtin_color_green(args);
+        if (method_name == "yellow") return color_bindings::builtin_color_yellow(args);
+        if (method_name == "blue") return color_bindings::builtin_color_blue(args);
+        if (method_name == "magenta") return color_bindings::builtin_color_magenta(args);
+        if (method_name == "cyan") return color_bindings::builtin_color_cyan(args);
+        if (method_name == "white") return color_bindings::builtin_color_white(args);
+        if (method_name == "black") return color_bindings::builtin_color_black(args);
+        if (method_name == "bright_red") return color_bindings::builtin_color_bright_red(args);
+        if (method_name == "bright_green") return color_bindings::builtin_color_bright_green(args);
+        if (method_name == "bright_yellow") return color_bindings::builtin_color_bright_yellow(args);
+        if (method_name == "bright_blue") return color_bindings::builtin_color_bright_blue(args);
+        if (method_name == "bright_magenta") return color_bindings::builtin_color_bright_magenta(args);
+        if (method_name == "bright_cyan") return color_bindings::builtin_color_bright_cyan(args);
+        if (method_name == "bright_white") return color_bindings::builtin_color_bright_white(args);
+        if (method_name == "bg_red") return color_bindings::builtin_color_bg_red(args);
+        if (method_name == "bg_green") return color_bindings::builtin_color_bg_green(args);
+        if (method_name == "bg_yellow") return color_bindings::builtin_color_bg_yellow(args);
+        if (method_name == "bg_blue") return color_bindings::builtin_color_bg_blue(args);
+        if (method_name == "bg_magenta") return color_bindings::builtin_color_bg_magenta(args);
+        if (method_name == "bg_cyan") return color_bindings::builtin_color_bg_cyan(args);
+        if (method_name == "bg_white") return color_bindings::builtin_color_bg_white(args);
+        if (method_name == "bg_black") return color_bindings::builtin_color_bg_black(args);
+        if (method_name == "bold") return color_bindings::builtin_color_bold(args);
+        if (method_name == "dim") return color_bindings::builtin_color_dim(args);
+        if (method_name == "italic") return color_bindings::builtin_color_italic(args);
+        if (method_name == "underline") return color_bindings::builtin_color_underline(args);
+        if (method_name == "blink") return color_bindings::builtin_color_blink(args);
+        if (method_name == "reverse") return color_bindings::builtin_color_reverse(args);
+        if (method_name == "hidden") return color_bindings::builtin_color_hidden(args);
+        if (method_name == "rgb") return color_bindings::builtin_color_rgb(args);
+        if (method_name == "bg_rgb") return color_bindings::builtin_color_bg_rgb(args);
+        if (method_name == "reset") return color_bindings::builtin_color_reset(args);
+        if (method_name == "colorize") return color_bindings::builtin_color_colorize(args);
+        throw std::runtime_error("Unknown color method: " + method_name);
     }
 
     Value call_os_builtin(const std::string& method_name,
@@ -24958,6 +25689,24 @@ private:
                     }
                     DISPATCH();
                 }
+                if (map == ensure_color_module()) {
+                    try {
+                        {
+                            std::vector<Value> args_vec;
+                            args_vec.reserve(argc);
+                            for (uint8_t i = 0; i < argc; ++i) {
+                                args_vec.push_back(to_value(sp[-argc + i]));
+                            }
+
+                            Value result = call_color_builtin(method_name, args_vec);
+                            sp -= argc + 1;
+                            PUSH(from_value(result));
+                        }
+                    } catch (const std::exception& e) {
+                        runtime_error(e.what());
+                    }
+                    DISPATCH();
+                }
                 if (map == ensure_os_module()) {
                     try {
                         {
@@ -25716,6 +26465,12 @@ private:
 
             if (module_name == "http") {
                 uint64_t module_val = val_map(ensure_http_module());
+                globals[module_key] = module_val;
+                PUSH(module_val);
+                DISPATCH();
+            }
+            if (module_name == "color") {
+                uint64_t module_val = val_map(ensure_color_module());
                 globals[module_key] = module_val;
                 PUSH(module_val);
                 DISPATCH();
@@ -28106,6 +28861,69 @@ bool command_exists(const std::string& cmd) {
     return std::system(probe.c_str()) == 0;
 }
 
+std::string resolve_executable_path(const std::string& argv0) {
+    // If argv0 is already an absolute path or contains a path separator, use it directly
+    fs::path p(argv0);
+    if (p.is_absolute() || argv0.find('/') != std::string::npos || argv0.find('\\') != std::string::npos) {
+        if (fs::exists(p)) {
+            return fs::absolute(p).string();
+        }
+    }
+    
+    // Otherwise, search in PATH
+#ifdef _WIN32
+    const char* path_env = std::getenv("PATH");
+    const char path_sep = ';';
+    std::vector<std::string> exts = {".exe", ".bat", ".cmd", ""};
+#else
+    const char* path_env = std::getenv("PATH");
+    const char path_sep = ':';
+    std::vector<std::string> exts = {""};
+#endif
+    
+    if (path_env) {
+        std::string path_str(path_env);
+        size_t start = 0;
+        size_t end = path_str.find(path_sep);
+        
+        while (start < path_str.length()) {
+            std::string dir = (end == std::string::npos) 
+                ? path_str.substr(start) 
+                : path_str.substr(start, end - start);
+            
+            for (const auto& ext : exts) {
+                fs::path candidate = fs::path(dir) / (argv0 + ext);
+                if (fs::exists(candidate)) {
+                    return fs::absolute(candidate).string();
+                }
+            }
+            
+            if (end == std::string::npos) break;
+            start = end + 1;
+            end = path_str.find(path_sep, start);
+        }
+    }
+    
+    // Fallback: return as-is
+    return argv0;
+}
+
+std::string get_current_platform() {
+#if defined(_WIN32) || defined(_WIN64)
+    return "x86_64-windows-gnu";
+#elif defined(__APPLE__) || defined(__MACH__)
+    #if defined(__aarch64__) || defined(_M_ARM64)
+        return "aarch64-macos";
+    #else
+        return "x86_64-macos";
+    #endif
+#elif defined(__linux__)
+    return "x86_64-linux-gnu";
+#else
+    return "native";
+#endif
+}
+
 std::string normalize_target(const std::string& t) {
     std::string x = t;
     std::transform(x.begin(), x.end(), x.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
@@ -28139,11 +28957,28 @@ int build_runtime_for_target(const std::string& self_exe_path,
     }
 
     std::string nt = normalize_target(opts.target);
-    if (nt == "native") {
-        out_runtime_path = self_exe_path;
+    std::string current_platform = get_current_platform();
+    
+    // Use native compilation if building for current platform
+    if (nt == "native" || nt == current_platform) {
+        std::string resolved_path = resolve_executable_path(self_exe_path);
+        out_runtime_path = resolved_path;
+        
+        if (!fs::exists(out_runtime_path)) {
+            std::cerr << "Build error: Cannot locate Levython runtime executable." << std::endl;
+            std::cerr << "Tried: " << out_runtime_path.string() << std::endl;
+            std::cerr << "Hint: Ensure levython is properly installed or use --runtime <path>" << std::endl;
+            return 1;
+        }
+        
+        if (opts.verbose) {
+            std::cout << "[build] Using native Levython compiler for target: " << nt << std::endl;
+            std::cout << "[build] Runtime path: " << out_runtime_path.string() << std::endl;
+        }
         return 0;
     }
 
+    // Cross-compilation to different platform - use Zig
     if (!command_exists("zig")) {
         std::cerr << "Build error: cross-target requires Zig compiler (`zig`) in PATH." << std::endl;
         std::cerr << "Install Zig, or provide a prebuilt runtime via --runtime <path>." << std::endl;
@@ -28187,6 +29022,10 @@ int build_runtime_for_target(const std::string& self_exe_path,
         return 1;
     }
 
+    if (opts.verbose) {
+        std::cout << "[build] Cross-compiled runtime using Zig for target: " << nt << std::endl;
+    }
+
     out_runtime_path = runtime_out;
     return 0;
 }
@@ -28227,15 +29066,25 @@ int build_native_executable(const std::string& self_exe_path,
     }
     packager::set_executable_permissions(output_exe);
 
-    std::cout << "Built standalone executable: " << output_exe << std::endl;
-    std::cout << "Runtime embedded from: " << runtime_path.string() << std::endl;
-    std::cout << "Target: " << normalize_target(opts.target) << std::endl;
+    std::string nt = normalize_target(opts.target);
+    std::string current_platform = get_current_platform();
+    bool is_cross_compile = (nt != "native" && nt != current_platform);
+    
+    std::cout << "✓ Built standalone executable: " << output_exe << std::endl;
+    std::cout << "  Target platform: " << nt << std::endl;
+    std::cout << "  Compilation method: " << (is_cross_compile ? "Cross-compiled (Zig)" : "Native (Levython)") << std::endl;
+    if (opts.verbose) {
+        std::cout << "  Runtime source: " << runtime_path.string() << std::endl;
+    }
     return 0;
 }
 
 
 // Main function to run the interpreter
 int main(int argc, char* argv[]) {
+    // Initialize Unicode/UTF-8 support for console output
+    encoding::initialize_console_encoding();
+    
     os_bindings::set_cli_args(argc, argv);
     // Build command:aaaHello!
 
@@ -28247,12 +29096,16 @@ int main(int argc, char* argv[]) {
                       << "Options:\n"
                       << "  -o, --output <file>      Output executable path\n"
                       << "  --target <t>             native|windows|linux|macos|<target-triple>\n"
+                      << "                           (uses Zig only for cross-platform builds)\n"
                       << "  --runtime <file>         Use prebuilt runtime binary instead of compiling\n"
                       << "  --source-root <dir>      Source root for cross-runtime compile (default: .)\n"
-                      << "  --verbose                Print cross-compile command\n\n"
+                      << "  --verbose                Print compilation details\n\n"
+                      << "Compilation Methods:\n"
+                      << "  • Native builds (same platform): Uses Levython compiler directly\n"
+                      << "  • Cross-platform builds: Uses Zig for cross-compilation\n\n"
                       << "Examples:\n"
-                      << "  levython build app.levy -o app\n"
-                      << "  levython build app.levy --target windows -o app.exe\n"
+                      << "  levython build app.levy -o app              # Native build\n"
+                      << "  levython build app.levy --target windows -o app.exe    # Cross-compile\n"
                       << "  levython build app.levy --target aarch64-macos -o app-mac\n";
             return 0;
         }
@@ -28360,10 +29213,14 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     
-    // Read source file
-    std::ifstream ifs(file);
-    if (!ifs) { std::cerr << "Cannot open: " << file << std::endl; return 1; }
-    std::string code((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    // Read source file with UTF-8 support
+    std::string code;
+    try {
+        code = encoding::read_file_utf8(file);
+    } catch (const std::exception& e) {
+        encoding::safe_error("Cannot open: " + file + " - " + std::string(e.what()) + "\n");
+        return 1;
+    }
     
     return execute_levython_source(code);
 }

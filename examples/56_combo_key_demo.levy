@@ -1,0 +1,482 @@
+# ============================================================================
+# COMBO KEY DETECTION DEMONSTRATION
+# ============================================================================
+# Demonstrates the NEW combo key detection features in Levython input module
+#
+# NEW FEATURES DEMONSTRATED:
+#   1. input.poll() - Enhanced with modifier states (ctrl, shift, alt, meta)
+#   2. input.get_modifiers() - Get current modifier states without consuming events
+#   3. input.is_combo_pressed() - Check if specific combo is pressed
+#   4. input.get_key_state() - Check if specific key is pressed
+#
+# EXAMPLES:
+#   - Real-time modifier display
+#   - Combo detection (Ctrl+S, Ctrl+Shift+S, etc.)
+#   - Hotkey system implementation
+#   - Multi-key combination detection
+#
+# Run with: ./levython examples/56_combo_key_demo.levy
+# ============================================================================
+
+import input
+import datetime
+
+# ============================================================================
+# Clear screen helper
+# ============================================================================
+
+act clear_screen() {
+    say("\033[2J\033[H")
+}
+
+# ============================================================================
+# Display current modifier states
+# ============================================================================
+
+act display_modifier_status(mods) {
+    status <- "Modifiers: "
+
+    if mods["ctrl"] {
+        status <- status + "\033[41m\033[97m [CTRL] \033[0m "
+    } else {
+        status <- status + "[     ] "
+    }
+
+    if mods["shift"] {
+        status <- status + "\033[42m\033[97m [SHIFT] \033[0m "
+    } else {
+        status <- status + "[      ] "
+    }
+
+    if mods["alt"] {
+        status <- status + "\033[43m\033[30m [ALT] \033[0m "
+    } else {
+        status <- status + "[    ] "
+    }
+
+    if mods["meta"] {
+        status <- status + "\033[44m\033[97m [WIN/META] \033[0m "
+    } else {
+        status <- status + "[        ] "
+    }
+
+    say(status)
+}
+
+# ============================================================================
+# Main Demo Menu
+# ============================================================================
+
+clear_screen()
+say("============================================================")
+say("  COMBO KEY DETECTION DEMONSTRATION")
+say("============================================================")
+say("")
+say("  Choose a demo mode:")
+say("")
+say("  1. Real-time Modifier Display")
+say("  2. Common Combos (Ctrl+S, Ctrl+C, etc.)")
+say("  3. Screenshot Detection Demo")
+say("  4. Custom Hotkey System")
+say("  5. Multi-key Sequence Detection")
+say("  6. Key State Monitoring")
+say("")
+say("  Q. Quit")
+say("")
+say("============================================================")
+say("")
+say("Enter choice (1-6 or Q): ")
+
+choice <- input.read_key()
+
+# ============================================================================
+# DEMO 1: Real-time Modifier Display
+# ============================================================================
+
+if choice == "1" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 1: Real-time Modifier Display")
+    say("============================================================")
+    say("")
+    say("  Hold down Ctrl, Shift, Alt, or Win/Meta keys")
+    say("  The display will update in real-time")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    while yes {
+        r <- input.poll()
+
+        if r["ok"] and (r["key"] == "q" or r["key"] == "Q") {
+            break
+        }
+
+        # Get current modifier states
+        mods <- input.get_modifiers()
+
+        # Clear and redisplay
+        say("\033[H")  # Move cursor to home
+        say("============================================================")
+        say("  MODIFIER STATUS (Real-time)")
+        say("============================================================")
+        say("")
+        display_modifier_status(mods)
+        say("")
+        say("  Timestamp: " + str(mods["timestamp"]))
+        say("")
+        say("  Press 'Q' to exit")
+        say("============================================================")
+
+        datetime.sleep(50)
+    }
+
+    input.disable_raw()
+}
+
+# ============================================================================
+# DEMO 2: Common Combos Detection
+# ============================================================================
+
+else if choice == "2" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 2: Common Keyboard Combos")
+    say("============================================================")
+    say("")
+    say("  Try these combos:")
+    say("    • Ctrl+S       - Save")
+    say("    • Ctrl+C       - Copy")
+    say("    • Ctrl+V       - Paste")
+    say("    • Ctrl+Z       - Undo")
+    say("    • Ctrl+Shift+S - Save As")
+    say("    • Ctrl+Shift+Z - Redo")
+    say("    • Alt+F4       - Close")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    while yes {
+        r <- input.poll()
+
+        if r["ok"] {
+            key <- r["key"]
+            code <- r["code"]
+
+            if key == "q" or key == "Q" {
+                break
+            }
+
+            # Check for common combos using the NEW modifier fields
+            if r["ctrl"] and not r["shift"] and not r["alt"] {
+                if key == "s" or key == "S" {
+                    say(">>> \033[32m✓ SAVE (Ctrl+S)\033[0m")
+                } else if key == "c" or key == "C" {
+                    say(">>> \033[32m✓ COPY (Ctrl+C)\033[0m")
+                } else if key == "v" or key == "V" {
+                    say(">>> \033[32m✓ PASTE (Ctrl+V)\033[0m")
+                } else if key == "z" or key == "Z" {
+                    say(">>> \033[32m✓ UNDO (Ctrl+Z)\033[0m")
+                }
+            } else if r["ctrl"] and r["shift"] and not r["alt"] {
+                if key == "s" or key == "S" {
+                    say(">>> \033[33m✓ SAVE AS (Ctrl+Shift+S)\033[0m")
+                } else if key == "z" or key == "Z" {
+                    say(">>> \033[33m✓ REDO (Ctrl+Shift+Z)\033[0m")
+                }
+            } else if r["alt"] and not r["ctrl"] and not r["shift"] {
+                if code == 115 {  # F4
+                    say(">>> \033[31m✓ CLOSE (Alt+F4)\033[0m")
+                }
+            }
+        }
+
+        datetime.sleep(10)
+    }
+
+    input.disable_raw()
+}
+
+# ============================================================================
+# DEMO 3: Screenshot Detection
+# ============================================================================
+
+else if choice == "3" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 3: Screenshot Detection")
+    say("============================================================")
+    say("")
+    say("  This demo detects common screenshot combos:")
+    say("    • PrintScreen")
+    say("    • Win+Shift+S  (Windows Snipping Tool)")
+    say("    • Ctrl+Shift+PrintScreen (Linux)")
+    say("    • Cmd+Shift+3/4/5 (macOS)")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    detection_count <- 0
+
+    while yes {
+        # Use NEW is_combo_pressed() for instant detection
+        if input.is_combo_pressed("meta+shift+s") {
+            say("\033[41m\033[97m [!!!] SNIPPING TOOL DETECTED (Win+Shift+S) [!!!] \033[0m")
+            detection_count <- detection_count + 1
+            datetime.sleep(500)  # Debounce
+        }
+
+        if input.is_combo_pressed("ctrl+shift+printscreen") {
+            say("\033[43m\033[30m [!!!] LINUX SCREENSHOT (Ctrl+Shift+PrintScreen) [!!!] \033[0m")
+            detection_count <- detection_count + 1
+            datetime.sleep(500)
+        }
+
+        # Also check via poll
+        r <- input.poll()
+
+        if r["ok"] {
+            if r["key"] == "q" or r["key"] == "Q" {
+                break
+            }
+
+            # PrintScreen key (code 44, 99, or 107)
+            if r["code"] == 44 or r["code"] == 99 or r["code"] == 107 {
+                threat <- "PrintScreen"
+
+                if r["shift"] and not r["ctrl"] and not r["alt"] {
+                    threat <- "Shift+PrintScreen (Area)"
+                } else if r["alt"] and not r["shift"] and not r["ctrl"] {
+                    threat <- "Alt+PrintScreen (Window)"
+                } else if r["ctrl"] and r["alt"] {
+                    threat <- "Ctrl+Alt+PrintScreen (Clipboard)"
+                }
+
+                say("\033[42m\033[97m [!!!] SCREENSHOT: " + threat + " [!!!] \033[0m")
+                detection_count <- detection_count + 1
+            }
+        }
+
+        datetime.sleep(10)
+    }
+
+    input.disable_raw()
+
+    say("")
+    say("Total screenshots detected: " + str(detection_count))
+}
+
+# ============================================================================
+# DEMO 4: Custom Hotkey System
+# ============================================================================
+
+else if choice == "4" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 4: Custom Hotkey System")
+    say("============================================================")
+    say("")
+    say("  Defined hotkeys:")
+    say("    • Ctrl+N       - New file")
+    say("    • Ctrl+O       - Open file")
+    say("    • Ctrl+W       - Close tab")
+    say("    • Ctrl+Shift+T - Reopen tab")
+    say("    • Alt+1/2/3    - Switch to tab 1/2/3")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    # Hotkey handlers
+    hotkeys <- {
+        "ctrl+n": "Creating new file...",
+        "ctrl+o": "Opening file...",
+        "ctrl+w": "Closing tab...",
+        "ctrl+shift+t": "Reopening last tab...",
+        "alt+1": "Switching to tab 1",
+        "alt+2": "Switching to tab 2",
+        "alt+3": "Switching to tab 3"
+    }
+
+    while yes {
+        r <- input.poll()
+
+        if r["ok"] {
+            if r["key"] == "q" or r["key"] == "Q" {
+                break
+            }
+
+            # Build combo string
+            combo <- ""
+
+            if r["ctrl"] { combo <- combo + "ctrl+" }
+            if r["shift"] { combo <- combo + "shift+" }
+            if r["alt"] { combo <- combo + "alt+" }
+            if r["meta"] { combo <- combo + "meta+" }
+
+            combo <- combo + r["key"]
+
+            # Check if it's a registered hotkey
+            if contains(hotkeys, combo) {
+                say(">>> \033[32m✓ HOTKEY TRIGGERED: " + combo + "\033[0m")
+                say("    Action: " + hotkeys[combo])
+            }
+        }
+
+        datetime.sleep(10)
+    }
+
+    input.disable_raw()
+}
+
+# ============================================================================
+# DEMO 5: Multi-key Sequence Detection
+# ============================================================================
+
+else if choice == "5" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 5: Multi-key Sequence Detection")
+    say("============================================================")
+    say("")
+    say("  Type these sequences:")
+    say("    • K-O-N-A-M-I  - Konami code simulation")
+    say("    • S-A-V-E      - Custom save sequence")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    sequence <- []
+    max_sequence_length <- 10
+
+    while yes {
+        r <- input.poll()
+
+        if r["ok"] and r["type"] == "press" {
+            key <- r["key"]
+
+            if key == "q" or key == "Q" {
+                break
+            }
+
+            if len(key) == 1 {
+                # Add to sequence
+                sequence <- sequence + [key]
+
+                # Keep only last N keys
+                if len(sequence) > max_sequence_length {
+                    sequence <- sequence[1:]
+                }
+
+                # Convert to string
+                seq_str <- ""
+                i <- 0
+                while i < len(sequence) {
+                    seq_str <- seq_str + sequence[i]
+                    i <- i + 1
+                }
+
+                say("Current sequence: " + seq_str)
+
+                # Check for patterns
+                if seq_str == "konami" or seq_str == "KONAMI" {
+                    say("\033[35m")
+                    say("★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★")
+                    say("★  KONAMI CODE DETECTED! +30 LIVES  ★")
+                    say("★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★")
+                    say("\033[0m")
+                    sequence <- []
+                } else if seq_str == "save" or seq_str == "SAVE" {
+                    say("\033[32m✓ SAVE sequence detected!\033[0m")
+                    sequence <- []
+                }
+            }
+        }
+
+        datetime.sleep(10)
+    }
+
+    input.disable_raw()
+}
+
+# ============================================================================
+# DEMO 6: Key State Monitoring
+# ============================================================================
+
+else if choice == "6" {
+    clear_screen()
+    say("============================================================")
+    say("  DEMO 6: Key State Monitoring")
+    say("============================================================")
+    say("")
+    say("  Monitors specific keys in real-time")
+    say("  Watching: W, A, S, D, Space, Shift")
+    say("")
+    say("  Press 'Q' to return to menu")
+    say("============================================================")
+    say("")
+
+    input.enable_raw()
+
+    while yes {
+        r <- input.poll()
+
+        if r["ok"] and (r["key"] == "q" or r["key"] == "Q") {
+            break
+        }
+
+        # Check state of specific keys using NEW get_key_state()
+        w_state <- input.get_key_state("w")
+        a_state <- input.get_key_state("a")
+        s_state <- input.get_key_state("s")
+        d_state <- input.get_key_state("d")
+        space_state <- input.get_key_state(" ")
+        shift_state <- input.get_key_state("shift")
+
+        # Display
+        say("\033[H")  # Move to home
+        say("============================================================")
+        say("  KEY STATE MONITOR")
+        say("============================================================")
+        say("")
+
+        if w_state { say("  [W] \033[42m PRESSED \033[0m") } else { say("  [W] released") }
+        if a_state { say("  [A] \033[42m PRESSED \033[0m") } else { say("  [A] released") }
+        if s_state { say("  [S] \033[42m PRESSED \033[0m") } else { say("  [S] released") }
+        if d_state { say("  [D] \033[42m PRESSED \033[0m") } else { say("  [D] released") }
+        if space_state { say("  [SPACE] \033[42m PRESSED \033[0m") } else { say("  [SPACE] released") }
+        if shift_state { say("  [SHIFT] \033[42m PRESSED \033[0m") } else { say("  [SHIFT] released") }
+
+        say("")
+        say("  Press 'Q' to exit")
+        say("============================================================")
+
+        datetime.sleep(50)
+    }
+
+    input.disable_raw()
+}
+
+# ============================================================================
+# Exit
+# ============================================================================
+
+clear_screen()
+say("Thank you for trying the Combo Key Detection Demo!")
+say("")
+
+-> 0

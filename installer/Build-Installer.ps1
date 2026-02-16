@@ -1,349 +1,874 @@
 ﻿<#
 .SYNOPSIS
-    Build complete Levython Windows installer package
+    Levython Windows Installer Build System
+
 .DESCRIPTION
-    This script:
-    1. Detects system architecture
-    2. Compiles Levython from source
-    3. Creates installer package
-    4. Optionally creates self-extracting installer
+    Advanced build system for creating Levython installers with enhanced UI/UX.
+
+    Features:
+    - Automatic architecture detection (x64, x86, ARM64)
+    - Multi-compiler support (GCC, MSVC, Clang)
+    - OpenSSL auto-detection
+    - Enhanced console output with progress indicators
+    - Comprehensive error handling
+    - Build verification and validation
+
+.PARAMETER SkipBuild
+    Skip the compilation step and use existing binaries
+
+.PARAMETER SkipInnoSetup
+    Skip Inno Setup installer creation
+
+.PARAMETER Architecture
+    Target architecture: auto, x64, x86, arm64, or all
+
+.PARAMETER Compiler
+    Preferred compiler: auto, gcc, msvc, or clang
+
+.PARAMETER Clean
+    Clean build directories before building
+
+.EXAMPLE
+    .\Build-Installer.ps1
+    Build installer for current architecture
+
+.EXAMPLE
+    .\Build-Installer.ps1 -Architecture all
+    Build installers for all architectures
+
+.EXAMPLE
+    .\Build-Installer.ps1 -Clean -Compiler msvc
+    Clean build and compile with MSVC
+
 .NOTES
-    Run from Developer Command Prompt for full build capabilities
+    Author: Levython Authors
+    Version: 2.0.0
+    Support: levythonhq@gmail.com
+    Motto: Be better than yesterday
 #>
 
 param(
     [switch]$SkipBuild,
-    [switch]$CreateSFX,
-    [string]$Architecture = "auto"
+    [switch]$SkipInnoSetup,
+    [string]$Architecture = "auto",
+    [string]$Compiler = "auto",
+    [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
-# Configuration
-$script:ProjectRoot = Split-Path -Parent $PSScriptRoot
-$script:BuildDir = Join-Path $script:ProjectRoot "build"
-$script:ReleaseDir = Join-Path $script:ProjectRoot "releases"
-$script:InstallerDir = $PSScriptRoot
-$script:Version = "1.0.3"
-
-# Detect architecture
-if ($Architecture -eq "auto") {
-    $script:Arch = if ([Environment]::Is64BitOperatingSystem) {
-        if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
-    } else { "x86" }
-} else {
-    $script:Arch = $Architecture
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+$script:Config = @{
+    Version = "1.0.3"
+    AppName = "Levython"
+    Motto = "Be better than yesterday"
+    ProjectRoot = Split-Path -Parent $PSScriptRoot
+    BuildDir = $null
+    ReleaseDir = $null
+    InstallerDir = $PSScriptRoot
+    StartTime = Get-Date
 }
 
-Write-Host ""
-Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "           LEVYTHON INSTALLER BUILD SYSTEM                             " -ForegroundColor Cyan
-Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "  Version: $script:Version" -ForegroundColor Cyan
-Write-Host "  Target:  $script:Arch" -ForegroundColor Cyan
-Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host ""
+$script:Config.BuildDir = Join-Path $script:Config.ProjectRoot "build"
+$script:Config.ReleaseDir = Join-Path $script:Config.ProjectRoot "releases"
 
-# Create directories
-New-Item -ItemType Directory -Path $script:BuildDir -Force | Out-Null
-New-Item -ItemType Directory -Path $script:ReleaseDir -Force | Out-Null
+# ============================================================================
+# CONSOLE UI FUNCTIONS
+# ============================================================================
+function Write-Banner {
+    param([string]$Title, [string]$Color = "Cyan")
 
-function Find-Compiler {
-    Write-Host "[INFO] Searching for C++ compiler..." -ForegroundColor Yellow
-    
-    # Check for g++ (MinGW)
-    $gpp = Get-Command g++ -ErrorAction SilentlyContinue
-    if ($gpp) {
-        Write-Host "    Found: g++ (MinGW)" -ForegroundColor Green
-        return @{ Type = "g++"; Path = $gpp.Source }
+    $width = 80
+    $border = "═" * $width
+
+    Write-Host ""
+    Write-Host "╔$border╗" -ForegroundColor $Color
+    Write-Host "║$((' ' * (($width - $Title.Length) / 2)))$Title$((' ' * (($width - $Title.Length) / 2)))║" -ForegroundColor $Color
+    Write-Host "╚$border╝" -ForegroundColor $Color
+    Write-Host ""
+}
+
+function Write-Section {
+    param([string]$Title)
+
+    Write-Host ""
+    Write-Host "┌─────────────────────────────────────────────────────────────────────────────┐" -ForegroundColor DarkCyan
+    Write-Host "│  $Title" -ForegroundColor Cyan
+    Write-Host "└─────────────────────────────────────────────────────────────────────────────┘" -ForegroundColor DarkCyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "  ✓ " -ForegroundColor Green -NoNewline
+    Write-Host $Message -ForegroundColor White
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "  ℹ " -ForegroundColor Cyan -NoNewline
+    Write-Host $Message -ForegroundColor Gray
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "  ⚠ " -ForegroundColor Yellow -NoNewline
+    Write-Host $Message -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "  ✗ " -ForegroundColor Red -NoNewline
+    Write-Host $Message -ForegroundColor Red
+}
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "  ▶ " -ForegroundColor Blue -NoNewline
+    Write-Host $Message -ForegroundColor White
+}
+
+function Write-Progress {
+    param(
+        [string]$Activity,
+        [int]$PercentComplete,
+        [string]$Status
+    )
+
+    $barLength = 40
+    $completed = [Math]::Floor($barLength * $PercentComplete / 100)
+    $remaining = $barLength - $completed
+
+    $bar = "[" + ("█" * $completed) + ("░" * $remaining) + "]"
+
+    Write-Host "`r  $bar $PercentComplete% - $Status" -NoNewline -ForegroundColor Cyan
+
+    if ($PercentComplete -eq 100) {
+        Write-Host ""
     }
-    
-    # Check for MSVC via vswhere
-    $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path $vsWhere) {
-        $vsPath = & $vsWhere -latest -property installationPath 2>$null
-        if ($vsPath) {
-            Write-Host "    Found: MSVC (Visual Studio)" -ForegroundColor Green
-            return @{ Type = "msvc"; VsPath = $vsPath }
+}
+
+# ============================================================================
+# SYSTEM DETECTION
+# ============================================================================
+function Get-TargetArchitectures {
+    if ($Architecture -eq "all") {
+        return @("x64", "x86")  # ARM64 requires special setup
+    }
+    elseif ($Architecture -eq "auto") {
+        if ([Environment]::Is64BitOperatingSystem) {
+            if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+                return @("arm64")
+            }
+            return @("x64")
+        }
+        return @("x86")
+    }
+    else {
+        return @($Architecture)
+    }
+}
+
+function Get-SystemInfo {
+    Write-Section "System Information"
+
+    $os = Get-CimInstance Win32_OperatingSystem
+    $cpu = Get-CimInstance Win32_Processor
+
+    Write-Info "OS: $($os.Caption) ($($os.Version))"
+    Write-Info "Architecture: $($env:PROCESSOR_ARCHITECTURE)"
+    Write-Info "CPU: $($cpu.Name)"
+    Write-Info "Cores: $($cpu.NumberOfCores) cores, $($cpu.NumberOfLogicalProcessors) threads"
+    Write-Info "RAM: $([Math]::Round($os.TotalVisibleMemorySize / 1MB, 2)) GB"
+    Write-Info "PowerShell: $($PSVersionTable.PSVersion)"
+}
+
+# ============================================================================
+# COMPILER DETECTION
+# ============================================================================
+function Find-Compiler {
+    param([string]$PreferredCompiler = "auto")
+
+    Write-Section "Compiler Detection"
+
+    $compilers = @()
+
+    # Check for GCC (MinGW)
+    try {
+        $gppPath = (Get-Command g++ -ErrorAction SilentlyContinue).Source
+        if ($gppPath) {
+            $version = (& g++ --version 2>&1 | Select-Object -First 1)
+            $compilers += @{
+                Type = "gcc"
+                Name = "GNU C++ Compiler (MinGW)"
+                Path = $gppPath
+                Version = $version
+                Priority = 1
+            }
+            Write-Info "Found: GCC - $version"
         }
     }
-    
-    # Check for clang++
-    $clang = Get-Command clang++ -ErrorAction SilentlyContinue
-    if ($clang) {
-        Write-Host "    Found: clang++" -ForegroundColor Green
-        return @{ Type = "clang++"; Path = $clang.Source }
+    catch { }
+
+    # Check for MSVC
+    try {
+        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $vsWhere) {
+            $vsPath = & $vsWhere -latest -property installationPath 2>$null
+            if ($vsPath) {
+                $vcvarsall = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
+                if (Test-Path $vcvarsall) {
+                    $vsVersion = & $vsWhere -latest -property catalog_productDisplayVersion 2>$null
+                    $compilers += @{
+                        Type = "msvc"
+                        Name = "Microsoft Visual C++"
+                        Path = $vcvarsall
+                        VsPath = $vsPath
+                        Version = "MSVC $vsVersion"
+                        Priority = 2
+                    }
+                    Write-Info "Found: MSVC - Visual Studio $vsVersion"
+                }
+            }
+        }
     }
-    
-    return $null
+    catch { }
+
+    # Check for Clang
+    try {
+        $clangPath = (Get-Command clang++ -ErrorAction SilentlyContinue).Source
+        if ($clangPath) {
+            $version = (& clang++ --version 2>&1 | Select-Object -First 1)
+            $compilers += @{
+                Type = "clang"
+                Name = "Clang/LLVM C++"
+                Path = $clangPath
+                Version = $version
+                Priority = 3
+            }
+            Write-Info "Found: Clang - $version"
+        }
+    }
+    catch { }
+
+    if ($compilers.Count -eq 0) {
+        Write-Error "No C++ compiler found!"
+        Write-Warning "Please install one of the following:"
+        Write-Host "    • MinGW-w64: https://www.mingw-w64.org/" -ForegroundColor Yellow
+        Write-Host "    • Visual Studio: https://visualstudio.microsoft.com/" -ForegroundColor Yellow
+        Write-Host "    • LLVM/Clang: https://llvm.org/" -ForegroundColor Yellow
+        throw "No compiler available"
+    }
+
+    # Select compiler
+    if ($PreferredCompiler -ne "auto") {
+        $selected = $compilers | Where-Object { $_.Type -eq $PreferredCompiler.ToLower() } | Select-Object -First 1
+        if ($selected) {
+            Write-Success "Selected: $($selected.Name)"
+            return $selected
+        }
+        Write-Warning "Preferred compiler '$PreferredCompiler' not found, using default"
+    }
+
+    $selected = $compilers | Sort-Object Priority | Select-Object -First 1
+    Write-Success "Selected: $($selected.Name)"
+
+    return $selected
 }
 
+# ============================================================================
+# OPENSSL DETECTION
+# ============================================================================
 function Find-OpenSSL {
+    Write-Section "OpenSSL Detection"
+
     $candidates = @(
         $env:OPENSSL_DIR,
         "C:\OpenSSL-Win64",
         "C:\OpenSSL-Win32",
+        "C:\OpenSSL",
         "${env:ProgramFiles}\OpenSSL-Win64",
+        "${env:ProgramFiles}\OpenSSL",
         "${env:ProgramFiles(x86)}\OpenSSL-Win32",
+        "${env:ProgramFiles(x86)}\OpenSSL",
         "C:\vcpkg\installed\x64-windows",
-        "C:\vcpkg\installed\x86-windows"
-    ) | Where-Object { $_ -and (Test-Path $_) }
+        "C:\vcpkg\installed\x86-windows",
+        "${env:VCPKG_ROOT}\installed\x64-windows",
+        "${env:VCPKG_ROOT}\installed\x86-windows"
+    ) | Where-Object { $_ } | Select-Object -Unique
 
     foreach ($base in $candidates) {
+        if (-not (Test-Path $base)) { continue }
+
         $inc = Join-Path $base "include"
         $lib = Join-Path $base "lib"
-        if (Test-Path $inc -and Test-Path $lib) {
-            return @{ Include = $inc; Lib = $lib }
+
+        # Check for OpenSSL headers
+        $opensslHeader = Join-Path $inc "openssl\ssl.h"
+
+        if ((Test-Path $inc) -and (Test-Path $lib) -and (Test-Path $opensslHeader)) {
+            # Try to find version
+            $version = "Unknown"
+            try {
+                $versionFile = Join-Path $inc "openssl\opensslv.h"
+                if (Test-Path $versionFile) {
+                    $content = Get-Content $versionFile -Raw
+                    if ($content -match 'OPENSSL_VERSION_TEXT\s+"OpenSSL\s+([\d.]+\w*)"') {
+                        $version = $matches[1]
+                    }
+                }
+            }
+            catch { }
+
+            Write-Success "Found: OpenSSL $version"
+            Write-Info "Include: $inc"
+            Write-Info "Library: $lib"
+
+            return @{
+                Include = $inc
+                Lib = $lib
+                Version = $version
+                BasePath = $base
+            }
         }
     }
-    return $null
+
+    Write-Error "OpenSSL not found!"
+    Write-Warning "Please install OpenSSL or set OPENSSL_DIR environment variable"
+    Write-Host ""
+    Write-Host "Installation options:" -ForegroundColor Yellow
+    Write-Host "  1. Download from: https://slproweb.com/products/Win32OpenSSL.html" -ForegroundColor Gray
+    Write-Host "  2. Install via vcpkg: vcpkg install openssl" -ForegroundColor Gray
+    Write-Host "  3. Use Chocolatey: choco install openssl" -ForegroundColor Gray
+
+    throw "OpenSSL not found"
 }
 
+# ============================================================================
+# BUILD FUNCTIONS
+# ============================================================================
 function Build-Executable {
-    param([string]$OutputPath)
-    
-    $srcFile = Join-Path $script:ProjectRoot "src\levython.cpp"
-    $httpFile = Join-Path $script:ProjectRoot "src\http_client.cpp"
+    param(
+        [string]$Arch,
+        [hashtable]$Compiler,
+        [hashtable]$OpenSSL
+    )
+
+    Write-Section "Building Levython ($Arch)"
+
+    $outputPath = Join-Path $script:Config.ReleaseDir "levython-windows-$Arch.exe"
+    $srcFile = Join-Path $script:Config.ProjectRoot "src\levython.cpp"
+    $httpFile = Join-Path $script:Config.ProjectRoot "src\http_client.cpp"
+
+    # Gather source files
     $srcFiles = @($srcFile)
-    if (Test-Path $httpFile) { $srcFiles += $httpFile }
-    
+    if (Test-Path $httpFile) {
+        $srcFiles += $httpFile
+        Write-Info "Including HTTP client module"
+    }
+
     if (-not (Test-Path $srcFile)) {
         throw "Source file not found: $srcFile"
     }
-    
-    $compiler = Find-Compiler
-    if (-not $compiler) {
-        throw "No C++ compiler found. Install MinGW-w64 or Visual Studio."
-    }
-    
-    Write-Host "[INFO] Building Levython ($script:Arch)..." -ForegroundColor Yellow
-    
-    $openssl = Find-OpenSSL
-    if (-not $openssl) {
-        throw "OpenSSL not found. Set OPENSSL_DIR or install OpenSSL (libssl/libcrypto)."
-    }
 
-    switch ($compiler.Type) {
-        "g++" {
-            $archFlag = switch ($script:Arch) {
-                "x64" { "-m64" }
-                "x86" { "-m32" }
-                "arm64" { "" }
+    Write-Step "Compiling with $($Compiler.Name)..."
+    Write-Info "Target: $Arch"
+    Write-Info "Output: $outputPath"
+
+    $buildSuccess = $false
+    $buildOutput = ""
+
+    try {
+        switch ($Compiler.Type) {
+            "gcc" {
+                $archFlag = switch ($Arch) {
+                    "x64" { "-m64" }
+                    "x86" { "-m32" }
+                    "arm64" { "" }
+                }
+
+                $compileArgs = @(
+                    "-std=c++17",
+                    "-O3",
+                    "-DNDEBUG",
+                    "-march=native",
+                    "-mtune=native",
+                    "-ffast-math",
+                    "-flto",
+                    "-static",
+                    "-static-libgcc",
+                    "-static-libstdc++",
+                    "-fexceptions",
+                    "-s",
+                    "-I", "`"$($OpenSSL.Include)`"",
+                    "-L", "`"$($OpenSSL.Lib)`"",
+                    "-lssl",
+                    "-lcrypto",
+                    "-lws2_32",
+                    "-lcrypt32",
+                    "-lwinmm",
+                    "-o", "`"$outputPath`""
+                ) + $srcFiles
+
+                if ($archFlag) {
+                    $compileArgs = @($archFlag) + $compileArgs
+                }
+
+                Write-Progress -Activity "Building" -PercentComplete 10 -Status "Compiling source files"
+                $buildOutput = & g++ $compileArgs 2>&1 | Out-String
+                Write-Progress -Activity "Building" -PercentComplete 100 -Status "Complete"
             }
-            
-            $compileArgs = @(
-                "-std=c++17",
-                "-O3",
-                "-DNDEBUG",
-                "-static",
-                "-static-libgcc",
-                "-static-libstdc++",
-                "-fexceptions",
-                "-I", $openssl.Include,
-                "-L", $openssl.Lib,
-                "-lssl",
-                "-lcrypto",
-                "-lws2_32",
-                "-lcrypt32",
-                "-o", $OutputPath,
-                $srcFiles
-            )
-            if ($archFlag) { $compileArgs = @($archFlag) + $compileArgs }
-            
-            Write-Host "    g++ $($compileArgs -join ' ')" -ForegroundColor DarkGray
-            $output = & g++ $compileArgs 2>&1
-            if ($output) { $output | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }
-        }
 
-        "msvc" {
-            $vcvarsall = Join-Path $compiler.VsPath "VC\Auxiliary\Build\vcvarsall.bat"
-            $msvcArch = switch ($script:Arch) {
-                "x64" { "x64" }
-                "x86" { "x86" }
-                "arm64" { "arm64" }
+            "msvc" {
+                $msvcArch = switch ($Arch) {
+                    "x64" { "x64" }
+                    "x86" { "x86" }
+                    "arm64" { "arm64" }
+                }
+
+                $srcList = ($srcFiles | ForEach-Object { "`"$_`"" }) -join " "
+
+                $buildCmd = @"
+@echo off
+call "$($Compiler.Path)" $msvcArch >nul 2>&1
+if errorlevel 1 exit /b 1
+
+cl.exe /std:c++17 /O2 /GL /EHsc /DNDEBUG /MT ^
+    /I"$($OpenSSL.Include)" ^
+    /Fe:"$outputPath" ^
+    $srcList ^
+    /link /LTCG /OPT:REF /OPT:ICF ^
+    /LIBPATH:"$($OpenSSL.Lib)" ^
+    libssl.lib libcrypto.lib ws2_32.lib crypt32.lib winmm.lib
+"@
+
+                $buildScript = Join-Path $script:Config.BuildDir "build_msvc_$Arch.bat"
+                $buildCmd | Set-Content -Path $buildScript -Encoding ASCII
+
+                Write-Progress -Activity "Building" -PercentComplete 10 -Status "Compiling source files"
+                $buildOutput = cmd.exe /c $buildScript 2>&1 | Out-String
+                Write-Progress -Activity "Building" -PercentComplete 100 -Status "Complete"
             }
-            
-            $srcList = ($srcFiles | ForEach-Object { "`"$_`"" }) -join " "
-            $buildCmd = "call `"$vcvarsall`" $msvcArch`r`ncl.exe /std:c++17 /O2 /EHsc /DNDEBUG /I`"$($openssl.Include)`" /Fe:`"$OutputPath`" $srcList /link /LIBPATH:`"$($openssl.Lib)`" libssl.lib libcrypto.lib ws2_32.lib crypt32.lib"
-            $buildScript = Join-Path $script:BuildDir "build_msvc.bat"
-            Set-Content -Path $buildScript -Value $buildCmd
-            
-            Write-Host "    cl.exe /std:c++17 /O2 /EHsc..." -ForegroundColor DarkGray
-            cmd.exe /c $buildScript 2>&1
+
+            "clang" {
+                $compileArgs = @(
+                    "-std=c++17",
+                    "-O3",
+                    "-DNDEBUG",
+                    "-march=native",
+                    "-flto",
+                    "-static",
+                    "-fexceptions",
+                    "-I", "`"$($OpenSSL.Include)`"",
+                    "-L", "`"$($OpenSSL.Lib)`"",
+                    "-lssl",
+                    "-lcrypto",
+                    "-lws2_32",
+                    "-lcrypt32",
+                    "-lwinmm",
+                    "-o", "`"$outputPath`""
+                ) + $srcFiles
+
+                Write-Progress -Activity "Building" -PercentComplete 10 -Status "Compiling source files"
+                $buildOutput = & clang++ $compileArgs 2>&1 | Out-String
+                Write-Progress -Activity "Building" -PercentComplete 100 -Status "Complete"
+            }
         }
-        
-        "clang++" {
-            $compileArgs = @(
-                "-std=c++17",
-                "-O3",
-                "-DNDEBUG",
-                "-static",
-                "-fexceptions",
-                "-I", $openssl.Include,
-                "-L", $openssl.Lib,
-                "-lssl",
-                "-lcrypto",
-                "-lws2_32",
-                "-lcrypt32",
-                "-o", $OutputPath,
-                $srcFiles
-            )
-            
-            Write-Host "    clang++ $($compileArgs -join ' ')" -ForegroundColor DarkGray
-            $output = & clang++ $compileArgs 2>&1
-            if ($output) { $output | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }
+
+        if (Test-Path $outputPath) {
+            $buildSuccess = $true
         }
+    }
+    catch {
+        $buildOutput = $_.Exception.Message
     }
 
-    # Check for successful build - file existence is primary indicator
-    if (Test-Path $OutputPath) {
-        $sizeMB = [math]::Round((Get-Item $OutputPath).Length / 1MB, 2)
-        Write-Host "[OK] Build successful: $OutputPath ($sizeMB MB)" -ForegroundColor Green
-    }
-    elseif ($LASTEXITCODE -ne 0) {
-        throw "Build failed with exit code $LASTEXITCODE"
+    if ($buildSuccess) {
+        $sizeMB = [Math]::Round((Get-Item $outputPath).Length / 1MB, 2)
+        Write-Success "Build completed: $outputPath ($sizeMB MB)"
+
+        # Verify executable
+        Write-Step "Verifying executable..."
+        try {
+            $verOutput = & $outputPath --version 2>&1 | Out-String
+            if ($verOutput -match "Levython|version") {
+                Write-Success "Executable verified successfully"
+                Write-Info $verOutput.Trim()
+            }
+            else {
+                Write-Warning "Verification produced unexpected output"
+            }
+        }
+        catch {
+            Write-Warning "Could not verify executable: $_"
+        }
+
+        return $outputPath
     }
     else {
-        throw "Build completed but executable not found: $OutputPath"
+        Write-Error "Build failed!"
+        if ($buildOutput) {
+            Write-Host ""
+            Write-Host "Build Output:" -ForegroundColor Red
+            Write-Host $buildOutput -ForegroundColor DarkRed
+        }
+        throw "Compilation failed for $Arch"
     }
 }
 
-function Create-InstallerPackage {
-    Write-Host "[INFO] Creating installer package..." -ForegroundColor Yellow
-    
-    $packageDir = Join-Path $script:BuildDir "package"
-    Remove-Item -Path $packageDir -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
-    
-    # Copy executable
-    $exePath = Join-Path $script:ReleaseDir "levython-windows-$($script:Arch).exe"
-    if (-not (Test-Path $exePath)) {
-        $exePath = Join-Path $script:ProjectRoot "levython.exe"
-    }
-    Copy-Item -Path $exePath -Destination (Join-Path $packageDir "levython.exe")
-    
-    # Copy installer scripts
-    Copy-Item -Path (Join-Path $script:InstallerDir "LevythonInstaller.ps1") -Destination $packageDir
-    Copy-Item -Path (Join-Path $script:InstallerDir "Install-Levython.bat") -Destination $packageDir
-    
-    # Copy documentation
-    $docs = @("README.md", "LICENSE", "CHANGELOG.md")
-    foreach ($doc in $docs) {
-        $docPath = Join-Path $script:ProjectRoot $doc
-        if (Test-Path $docPath) {
-            Copy-Item -Path $docPath -Destination $packageDir
+# ============================================================================
+# INNO SETUP
+# ============================================================================
+function Find-InnoSetup {
+    Write-Section "Inno Setup Detection"
+
+    $isccPaths = @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 5\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 5\ISCC.exe"
+    )
+
+    foreach ($path in $isccPaths) {
+        if (Test-Path $path) {
+            $version = (& $path /? 2>&1 | Select-String "Inno Setup" | Out-String).Trim()
+            Write-Success "Found: Inno Setup"
+            Write-Info $version
+            Write-Info "Path: $path"
+            return $path
         }
     }
-    
-    # Copy examples
-    $examplesDir = Join-Path $script:ProjectRoot "examples"
-    if (Test-Path $examplesDir) {
-        Copy-Item -Path $examplesDir -Destination (Join-Path $packageDir "examples") -Recurse
-    }
-    
-    # Copy VS Code extension
-    $vscodeDir = Join-Path $script:ProjectRoot "vscode-levython"
-    if (Test-Path $vscodeDir) {
-        Copy-Item -Path $vscodeDir -Destination (Join-Path $packageDir "vscode-levython") -Recurse
-    }
-    
-    # Create ZIP package
-    $zipPath = Join-Path $script:ReleaseDir "levython-$script:Version-windows-$($script:Arch)-installer.zip"
-    Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
-    Compress-Archive -Path "$packageDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
-    
-    $sizeMB = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
-    Write-Host "[OK] Package created: $zipPath ($sizeMB MB)" -ForegroundColor Green
-    
-    return $zipPath
+
+    Write-Warning "Inno Setup not found!"
+    Write-Info "Download from: https://jrsoftware.org/isdl.php"
+
+    return $null
 }
 
-function Create-SelfExtractor {
-    param([string]$ZipPath)
-    
-    Write-Host "[INFO] Creating self-extracting installer..." -ForegroundColor Yellow
-    
-    # Use 7-Zip if available for SFX creation
-    $sevenZip = Get-Command 7z -ErrorAction SilentlyContinue
-    if (-not $sevenZip) {
-        $sevenZipPaths = @(
-            "$env:ProgramFiles\7-Zip\7z.exe",
-            "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
-        )
-        foreach ($path in $sevenZipPaths) {
-            if (Test-Path $path) {
-                $sevenZip = @{ Source = $path }
-                break
+function Build-InnoSetupInstaller {
+    $iscc = Find-InnoSetup
+
+    if (-not $iscc) {
+        Write-Warning "Skipping Inno Setup installer creation"
+        return $null
+    }
+
+    Write-Section "Creating Installer"
+
+    $issFile = Join-Path $script:Config.InstallerDir "levython-setup.iss"
+
+    if (-not (Test-Path $issFile)) {
+        Write-Error "Inno Setup script not found: $issFile"
+        return $null
+    }
+
+    Write-Step "Building installer with Inno Setup..."
+    Write-Info "Script: $issFile"
+
+    try {
+        Write-Progress -Activity "Installer" -PercentComplete 20 -Status "Compiling installer"
+        $output = & $iscc $issFile 2>&1
+        Write-Progress -Activity "Installer" -PercentComplete 100 -Status "Complete"
+
+        $installerPath = Join-Path $script:Config.ReleaseDir "levython-$($script:Config.Version)-windows-setup.exe"
+
+        if (Test-Path $installerPath) {
+            $sizeMB = [Math]::Round((Get-Item $installerPath).Length / 1MB, 2)
+            Write-Success "Installer created: $installerPath ($sizeMB MB)"
+            return $installerPath
+        }
+        else {
+            Write-Warning "Installer file not found at expected location"
+            return $null
+        }
+    }
+    catch {
+        Write-Error "Inno Setup failed: $_"
+        return $null
+    }
+}
+
+# ============================================================================
+# PACKAGE CREATION
+# ============================================================================
+function Create-PortablePackage {
+    param([string[]]$Executables)
+
+    Write-Section "Creating Portable Packages"
+
+    $packages = @()
+
+    foreach ($exe in $Executables) {
+        if (-not (Test-Path $exe)) { continue }
+
+        $arch = if ($exe -match "x64") { "x64" }
+                elseif ($exe -match "x86") { "x86" }
+                elseif ($exe -match "arm64") { "arm64" }
+                else { "unknown" }
+
+        Write-Step "Packaging $arch build..."
+
+        $packageDir = Join-Path $script:Config.BuildDir "package-$arch"
+        Remove-Item -Path $packageDir -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+
+        # Copy executable
+        Copy-Item -Path $exe -Destination (Join-Path $packageDir "levython.exe")
+
+        # Copy logo
+        $logo = Join-Path $script:Config.ProjectRoot "icon.png"
+        if (Test-Path $logo) {
+            Copy-Item -Path $logo -Destination $packageDir
+        }
+
+        # Copy documentation
+        $docs = @("README.md", "LICENSE", "CHANGELOG.md", "QUICKREF.md")
+        $docsDir = Join-Path $packageDir "docs"
+        New-Item -ItemType Directory -Path $docsDir -Force | Out-Null
+
+        foreach ($doc in $docs) {
+            $docPath = Join-Path $script:Config.ProjectRoot $doc
+            if (Test-Path $docPath) {
+                Copy-Item -Path $docPath -Destination $docsDir
+            }
+        }
+
+        # Copy examples
+        $examplesDir = Join-Path $script:Config.ProjectRoot "examples"
+        if (Test-Path $examplesDir) {
+            Copy-Item -Path $examplesDir -Destination (Join-Path $packageDir "examples") -Recurse
+        }
+
+        # Copy VS Code extension
+        $vscodeDir = Join-Path $script:Config.ProjectRoot "vscode-levython"
+        if (Test-Path $vscodeDir) {
+            Copy-Item -Path $vscodeDir -Destination (Join-Path $packageDir "vscode-levython") -Recurse
+        }
+
+        # Create README for portable version
+        $portableReadme = @"
+# Levython Portable - $arch
+
+This is a portable version of Levython $($script:Config.Version).
+
+## Quick Start
+
+1. Add this directory to your PATH, or
+2. Run levython.exe directly from this folder
+
+## Usage
+
+    levython.exe --version
+    levython.exe --help
+    levython.exe script.levy
+    levython.exe  (for REPL)
+
+## Documentation
+
+See the 'docs' folder for full documentation.
+
+## Examples
+
+Check out the 'examples' folder for sample scripts.
+
+## Motto
+
+$($script:Config.Motto)
+
+---
+For more information, visit: https://github.com/levython/levython
+"@
+
+        $portableReadme | Set-Content -Path (Join-Path $packageDir "README_PORTABLE.txt") -Encoding UTF8
+
+        # Create ZIP package
+        $zipPath = Join-Path $script:Config.ReleaseDir "levython-$($script:Config.Version)-windows-$arch-portable.zip"
+        Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+
+        Write-Progress -Activity "Packaging" -PercentComplete 50 -Status "Creating ZIP archive"
+        Compress-Archive -Path "$packageDir\*" -DestinationPath $zipPath -CompressionLevel Optimal -Force
+        Write-Progress -Activity "Packaging" -PercentComplete 100 -Status "Complete"
+
+        if (Test-Path $zipPath) {
+            $sizeMB = [Math]::Round((Get-Item $zipPath).Length / 1MB, 2)
+            Write-Success "Package created: levython-$($script:Config.Version)-windows-$arch-portable.zip ($sizeMB MB)"
+            $packages += $zipPath
+        }
+    }
+
+    return $packages
+}
+
+# ============================================================================
+# CLEANUP
+# ============================================================================
+function Clean-BuildDirectories {
+    Write-Section "Cleaning Build Directories"
+
+    if (Test-Path $script:Config.BuildDir) {
+        Write-Step "Removing build directory..."
+        Remove-Item -Path $script:Config.BuildDir -Recurse -Force
+        Write-Success "Build directory cleaned"
+    }
+
+    New-Item -ItemType Directory -Path $script:Config.BuildDir -Force | Out-Null
+}
+
+# ============================================================================
+# SUMMARY
+# ============================================================================
+function Show-BuildSummary {
+    param(
+        [string[]]$Executables,
+        [string[]]$Packages,
+        [string]$Installer
+    )
+
+    $elapsed = (Get-Date) - $script:Config.StartTime
+
+    Write-Banner "BUILD COMPLETED SUCCESSFULLY" -Color Green
+
+    Write-Host "╔═══════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
+    Write-Host "║                           BUILD SUMMARY                                   ║" -ForegroundColor Green
+    Write-Host "╠═══════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Green
+    Write-Host "║  Version:        $($script:Config.Version)                                                      ║" -ForegroundColor White
+    Write-Host "║  Time Elapsed:   $($elapsed.ToString('hh\:mm\:ss'))                                                   ║" -ForegroundColor White
+    Write-Host "╠═══════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Green
+
+    if ($Executables.Count -gt 0) {
+        Write-Host "║  Executables:                                                             ║" -ForegroundColor Cyan
+        foreach ($exe in $Executables) {
+            $name = Split-Path $exe -Leaf
+            $size = [Math]::Round((Get-Item $exe).Length / 1MB, 2)
+            Write-Host "║    • $name ($size MB)" -ForegroundColor White
+        }
+    }
+
+    if ($Packages.Count -gt 0) {
+        Write-Host "║  Packages:                                                                ║" -ForegroundColor Cyan
+        foreach ($pkg in $Packages) {
+            $name = Split-Path $pkg -Leaf
+            $size = [Math]::Round((Get-Item $pkg).Length / 1MB, 2)
+            Write-Host "║    • $name ($size MB)" -ForegroundColor White
+        }
+    }
+
+    if ($Installer) {
+        $name = Split-Path $Installer -Leaf
+        $size = [Math]::Round((Get-Item $Installer).Length / 1MB, 2)
+        Write-Host "║  Installer:                                                               ║" -ForegroundColor Cyan
+        Write-Host "║    • $name ($size MB)" -ForegroundColor White
+    }
+
+    Write-Host "╠═══════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Green
+    Write-Host "║  Output Directory: $($script:Config.ReleaseDir)" -ForegroundColor Yellow
+    Write-Host "╚═══════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Motto: $($script:Config.Motto)" -ForegroundColor Magenta
+    Write-Host ""
+}
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+try {
+    # Display banner
+    Write-Banner "LEVYTHON BUILD SYSTEM"
+
+    Write-Host "  Version:  $($script:Config.Version)" -ForegroundColor Cyan
+    Write-Host "  Support:  levythonhq@gmail.com" -ForegroundColor Cyan
+    Write-Host "  Motto:    $($script:Config.Motto)" -ForegroundColor Magenta
+    Write-Host ""
+
+    # Create directories
+    New-Item -ItemType Directory -Path $script:Config.BuildDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $script:Config.ReleaseDir -Force | Out-Null
+
+    # Clean if requested
+    if ($Clean) {
+        Clean-BuildDirectories
+    }
+
+    # Get system info
+    Get-SystemInfo
+
+    # Build executables
+    $builtExecutables = @()
+
+    if (-not $SkipBuild) {
+        $compiler = Find-Compiler -PreferredCompiler $Compiler
+        $openssl = Find-OpenSSL
+        $architectures = Get-TargetArchitectures
+
+        Write-Section "Build Configuration"
+        Write-Info "Target Architectures: $($architectures -join ', ')"
+        Write-Info "Compiler: $($compiler.Name)"
+        Write-Info "OpenSSL: $($openssl.Version)"
+
+        foreach ($arch in $architectures) {
+            try {
+                $exe = Build-Executable -Arch $arch -Compiler $compiler -OpenSSL $openssl
+                $builtExecutables += $exe
+            }
+            catch {
+                Write-Error "Failed to build $arch`: $_"
             }
         }
     }
-    
-    if (-not $sevenZip) {
-        Write-Host "    7-Zip not found, skipping SFX creation" -ForegroundColor Yellow
-        return $null
-    }
-    
-    $sfxPath = Join-Path $script:ReleaseDir "levython-$script:Version-windows-$($script:Arch)-setup.exe"
-    $packageDir = Join-Path $script:BuildDir "package"
-    
-    # Create 7z archive
-    $archivePath = Join-Path $script:BuildDir "installer.7z"
-    & $sevenZip.Source a -t7z -mx=9 $archivePath "$packageDir\*" | Out-Null
-    
-    # Get SFX module
-    $sfxModule = Join-Path (Split-Path $sevenZip.Source) "7z.sfx"
-    if (-not (Test-Path $sfxModule)) {
-        Write-Host "    SFX module not found" -ForegroundColor Yellow
-        return $null
-    }
-    
-    # Create config file
-    $configPath = Join-Path $script:BuildDir "config.txt"
-    $configContent = ";!@Install@!UTF-8!`r`nTitle=Levython Installer`r`nBeginPrompt=Install Levython $($script:Version)?`r`nRunProgram=Install-Levython.bat`r`n;!@InstallEnd@!"
-    $configContent | Set-Content -Path $configPath
-    
-    # Combine SFX + config + archive
-    $sfxBytes = [System.IO.File]::ReadAllBytes($sfxModule)
-    $configBytes = [System.IO.File]::ReadAllBytes($configPath)
-    $archiveBytes = [System.IO.File]::ReadAllBytes($archivePath)
-    
-    $output = New-Object byte[] ($sfxBytes.Length + $configBytes.Length + $archiveBytes.Length)
-    [System.Buffer]::BlockCopy($sfxBytes, 0, $output, 0, $sfxBytes.Length)
-    [System.Buffer]::BlockCopy($configBytes, 0, $output, $sfxBytes.Length, $configBytes.Length)
-    [System.Buffer]::BlockCopy($archiveBytes, 0, $output, $sfxBytes.Length + $configBytes.Length, $archiveBytes.Length)
-    [System.IO.File]::WriteAllBytes($sfxPath, $output)
-    
-    $sizeMB = [math]::Round((Get-Item $sfxPath).Length / 1MB, 2)
-    Write-Host "[OK] SFX created: $sfxPath ($sizeMB MB)" -ForegroundColor Green
-    
-    return $sfxPath
-}
+    else {
+        Write-Section "Skipping Build"
+        Write-Info "Using existing executables from releases directory"
 
-# Main execution
-try {
-    if (-not $SkipBuild) {
-        $exePath = Join-Path $script:ReleaseDir "levython-windows-$($script:Arch).exe"
-        Build-Executable -OutputPath $exePath
+        # Find existing executables
+        $exePattern = Join-Path $script:Config.ReleaseDir "levython-windows-*.exe"
+        $existingExes = Get-ChildItem -Path $exePattern -ErrorAction SilentlyContinue
+
+        foreach ($exe in $existingExes) {
+            Write-Info "Found: $($exe.Name)"
+            $builtExecutables += $exe.FullName
+        }
+
+        if ($builtExecutables.Count -eq 0) {
+            Write-Warning "No existing executables found. Consider running without -SkipBuild"
+        }
     }
-    
-    $zipPath = Create-InstallerPackage
-    
-    if ($CreateSFX) {
-        Create-SelfExtractor -ZipPath $zipPath
+
+    # Create portable packages
+    $packages = @()
+    if ($builtExecutables.Count -gt 0) {
+        $packages = Create-PortablePackage -Executables $builtExecutables
     }
-    
-    Write-Host ""
-    Write-Host "========================================================================" -ForegroundColor Green
-    Write-Host "                    BUILD COMPLETED SUCCESSFULLY                        " -ForegroundColor Green
-    Write-Host "========================================================================" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Output files in: $script:ReleaseDir" -ForegroundColor Cyan
-    Get-ChildItem -Path $script:ReleaseDir -Filter "levython-$script:Version*" | 
-        ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor White }
-    Write-Host ""
+
+    # Create Inno Setup installer
+    $installer = $null
+    if (-not $SkipInnoSetup) {
+        $installer = Build-InnoSetupInstaller
+    }
+    else {
+        Write-Section "Skipping Inno Setup"
+        Write-Info "Use without -SkipInnoSetup to create professional installer"
+    }
+
+    # Show summary
+    Show-BuildSummary -Executables $builtExecutables -Packages $packages -Installer $installer
+
+    # Open releases folder
+    Write-Host "Opening releases folder..." -ForegroundColor Cyan
+    Start-Process explorer.exe -ArgumentList $script:Config.ReleaseDir
+
+    exit 0
 }
 catch {
     Write-Host ""
-    Write-Host "[ERROR] Build failed: $_" -ForegroundColor Red
+    Write-Banner "BUILD FAILED" -Color Red
+    Write-Host ""
+    Write-Host "Error: $_" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Stack Trace:" -ForegroundColor DarkRed
+    Write-Host $_.ScriptStackTrace -ForegroundColor DarkRed
+    Write-Host ""
+
     exit 1
 }

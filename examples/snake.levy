@@ -1,0 +1,445 @@
+# ============================================================================
+# CLASSIC SNAKE GAME - Full Screen with COLORS! 🌈
+# ============================================================================
+#
+# Classic Snake game with smooth controls and full-screen gameplay!
+#
+# Controls:
+#   W/↑     - Move Up
+#   S/↓     - Move Down
+#   A/←     - Move Left
+#   D/→     - Move Right
+#   P       - Pause
+#   Q       - Quit
+#
+# Rules:
+#   - Eat food (●) to grow and gain points
+#   - Don't hit walls or yourself
+#   - Get as long as possible!
+#
+# Run with: ./levython examples/54_snake_game.levy
+# ============================================================================
+
+import input
+import datetime
+import os
+import color
+
+# ============================================================================
+# Game Constants - MAXIMUM WINDOW SIZE
+# ============================================================================
+
+# Use maximum terminal size (adjust these for your terminal)
+WIDTH <- 100
+HEIGHT <- 28
+FPS <- 12
+FRAME_TIME <- 1000 / FPS
+
+# Directions
+DIR_UP <- 0
+DIR_DOWN <- 1
+DIR_LEFT <- 2
+DIR_RIGHT <- 3
+
+# ============================================================================
+# Game State
+# ============================================================================
+
+# Start snake in center of screen
+start_x <- int(WIDTH / 2)
+start_y <- int(HEIGHT / 2)
+snake <- [[start_x, start_y], [start_x - 1, start_y], [start_x - 2, start_y]]
+direction <- DIR_RIGHT
+next_direction <- DIR_RIGHT
+food_x <- start_x + 15
+food_y <- start_y
+score <- 0
+game_over <- no
+paused <- no
+grow_pending <- 0
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+act clear_screen() {
+    # Print enough newlines to clear visible screen
+    i <- 0
+    while i < 50 {
+        say("")
+        i <- i + 1
+    }
+}
+
+act spawn_food() {
+    # Generate random food position using current time
+    time_ms <- datetime.epoch_ms()
+    time_int <- int(time_ms)
+
+    food_x <- time_int % WIDTH
+    time_divided <- time_int / 7
+    food_y <- int(time_divided) % HEIGHT
+
+    # Make sure food doesn't spawn on snake
+    on_snake <- yes
+    while on_snake {
+        on_snake <- no
+        for segment in snake {
+            if segment[0] == food_x and segment[1] == food_y {
+                on_snake <- yes
+                food_x <- (food_x + 7) % WIDTH
+                food_y <- (food_y + 3) % HEIGHT
+                break
+            }
+        }
+    }
+}
+
+act check_collision(x, y) {
+    # Check wall collision
+    if x < 0 or x >= WIDTH or y < 0 or y >= HEIGHT {
+        -> yes
+    }
+
+    # Check self collision (skip head)
+    i <- 1
+    while i < len(snake) {
+        segment <- snake[i]
+        if segment[0] == x and segment[1] == y {
+            -> yes
+        }
+        i <- i + 1
+    }
+
+    -> no
+}
+
+act move_snake() {
+    if paused or game_over {
+        -> none
+    }
+
+    # Update direction (prevent 180-degree turns)
+    if next_direction == DIR_UP and direction != DIR_DOWN {
+        direction <- next_direction
+    }
+    if next_direction == DIR_DOWN and direction != DIR_UP {
+        direction <- next_direction
+    }
+    if next_direction == DIR_LEFT and direction != DIR_RIGHT {
+        direction <- next_direction
+    }
+    if next_direction == DIR_RIGHT and direction != DIR_LEFT {
+        direction <- next_direction
+    }
+
+    # Calculate new head position
+    head <- snake[0]
+    new_x <- head[0]
+    new_y <- head[1]
+
+    if direction == DIR_UP {
+        new_y <- new_y - 1
+    }
+    if direction == DIR_DOWN {
+        new_y <- new_y + 1
+    }
+    if direction == DIR_LEFT {
+        new_x <- new_x - 1
+    }
+    if direction == DIR_RIGHT {
+        new_x <- new_x + 1
+    }
+
+    # Check collision
+    if check_collision(new_x, new_y) {
+        game_over <- yes
+        -> none
+    }
+
+    # Add new head
+    new_snake <- [[new_x, new_y]]
+    for segment in snake {
+        new_snake <- new_snake + [segment]
+    }
+    snake <- new_snake
+
+    # Check food collision
+    if new_x == food_x and new_y == food_y {
+        score <- score + 10
+        grow_pending <- grow_pending + 3
+        spawn_food()
+        play_eat_sound()
+    }
+
+    # Remove tail if not growing
+    if grow_pending > 0 {
+        grow_pending <- grow_pending - 1
+    } else {
+        # Remove last segment
+        new_snake <- []
+        i <- 0
+        while i < len(snake) - 1 {
+            new_snake <- new_snake + [snake[i]]
+            i <- i + 1
+        }
+        snake <- new_snake
+    }
+}
+
+act draw_game() {
+    # Build screen buffer
+    screen <- []
+    y <- 0
+    while y < HEIGHT {
+        row <- []
+        x <- 0
+        while x < WIDTH {
+            row <- row + [" "]
+            x <- x + 1
+        }
+        screen <- screen + [row]
+        y <- y + 1
+    }
+
+    # Draw snake body in green
+    for segment in snake {
+        sx <- segment[0]
+        sy <- segment[1]
+        if sy >= 0 and sy < HEIGHT and sx >= 0 and sx < WIDTH {
+            screen[sy][sx] <- color.green("█")
+        }
+    }
+
+    # Draw snake head in bright green (different char)
+    head <- snake[0]
+    hx <- head[0]
+    hy <- head[1]
+    if hy >= 0 and hy < HEIGHT and hx >= 0 and hx < WIDTH {
+        screen[hy][hx] <- color.bright_green("■")
+    }
+
+    # Draw food in red
+    if food_y >= 0 and food_y < HEIGHT and food_x >= 0 and food_x < WIDTH {
+        screen[food_y][food_x] <- color.red("●")
+    }
+
+    # Build output
+    output <- ""
+
+    # Title with cyan color
+    output <- output + color.cyan("╔" + "═" * WIDTH + "╗") + "\n"
+
+    # Game screen
+    for row in screen {
+        output <- output + color.cyan("║")
+        for char in row {
+            output <- output + char
+        }
+        output <- output + color.cyan("║") + "\n"
+    }
+
+    # Bottom border with cyan color
+    output <- output + color.cyan("╚" + "═" * WIDTH + "╝") + "\n"
+
+    # Direction indicator
+    dir_text <- "→"
+    if direction == DIR_UP {
+        dir_text <- "↑"
+    }
+    if direction == DIR_DOWN {
+        dir_text <- "↓"
+    }
+    if direction == DIR_LEFT {
+        dir_text <- "←"
+    }
+
+    # Status bar with colors
+    output <- output + color.bright_yellow("🐍 SNAKE " + dir_text) + "  |  "
+    output <- output + color.bright_cyan("Score: " + str(score)) + "  |  "
+    output <- output + color.bright_magenta("Length: " + str(len(snake)))
+    output <- output + "  |  " + color.dim("Food: (" + str(food_x) + "," + str(food_y) + ")") + "  |  "
+    output <- output + color.yellow("WASD/Arrows") + "  " + color.blue("P=Pause") + "  " + color.red("Q=Quit") + "\n"
+
+    if paused {
+        output <- output + "\n" + color.bold(color.yellow("⏸️  PAUSED - Press P to continue")) + "\n"
+    }
+
+    if game_over {
+        output <- output + "\n" + color.bold(color.red("💀 GAME OVER! Final Score: " + str(score))) + "\n"
+    }
+
+    # Clear and draw
+    clear_screen()
+    say(output)
+}
+
+act play_eat_sound() {
+    # Sound effect for eating food
+    try {
+        os.Audio.play_tone(523.25, 0.05, 0.5)
+    } catch e {
+        # Audio not available, skip silently
+    }
+}
+
+act play_death_sound() {
+    # Sound effect for death
+    try {
+        os.Audio.play_tone(261.63, 0.1, 0.5)
+        datetime.sleep_ms(110)
+        os.Audio.play_tone(220.0, 0.2, 0.5)
+    } catch e {
+        # Audio not available, skip silently
+    }
+}
+
+# ============================================================================
+# Main Game Loop
+# ============================================================================
+
+clear_screen()
+say(color.bright_cyan("╔════════════════════════════════════════════════════════════════════════════╗"))
+say(color.bright_cyan("║") + color.bold(color.bright_yellow("                🐍 CLASSIC SNAKE GAME - FULL SCREEN 🐍               ")) + color.bright_cyan("║"))
+say(color.bright_cyan("╚════════════════════════════════════════════════════════════════════════════╝"))
+say("")
+say(color.cyan("Playing field: " + str(WIDTH) + "x" + str(HEIGHT) + " (MAXIMUM SIZE)"))
+say("")
+say(color.bright_white("Controls:"))
+say(color.green("  ⬆️  W or ↑  - Move Up"))
+say(color.green("  ⬇️  S or ↓  - Move Down"))
+say(color.green("  ⬅️  A or ←  - Move Left"))
+say(color.green("  ➡️  D or →  - Move Right"))
+say(color.yellow("  ⏸️  P      - Pause/Resume"))
+say(color.red("  ❌ Q      - Quit"))
+say("")
+say(color.bright_yellow("Eat food (") + color.red("●") + color.bright_yellow(") to grow and gain points!"))
+say(color.bright_red("Don't hit walls or yourself!"))
+say("")
+say(color.bold(color.bright_green("Press any key to start...")))
+
+ok <- input.enable_raw()
+if not ok {
+    say(color.red("❌ Failed to enable raw input mode. Game cannot start."))
+    -> 0
+}
+
+# Wait for start
+while yes {
+    r <- input.poll()
+    if r["ok"] == yes {
+        if r["key"] == "q" {
+            input.disable_raw()
+            say(color.cyan("Thanks for playing!"))
+            -> 0
+        }
+        break
+    }
+    datetime.sleep_ms(50)
+}
+
+# Initialize
+spawn_food()
+last_update <- datetime.epoch_ms()
+running <- yes
+frame_counter <- 0
+
+# Draw initial game state
+draw_game()
+
+# Game loop
+while running and not game_over {
+    current_time <- datetime.epoch_ms()
+
+    # Process input (same as Mario game)
+    while yes {
+        r <- input.poll()
+        if r["ok"] == no {
+            break
+        }
+
+        key <- r["key"]
+        code <- r["code"]
+
+        # Quit
+        if key == "q" {
+            running <- no
+            break
+        }
+
+        # Pause
+        if key == "p" {
+            paused <- not paused
+        }
+
+        # Movement - W or Up Arrow (38)
+        if key == "w" or code == 38 {
+            if direction != DIR_DOWN {
+                next_direction <- DIR_UP
+            }
+        }
+
+        # Movement - S or Down Arrow (40)
+        if key == "s" or code == 40 {
+            if direction != DIR_UP {
+                next_direction <- DIR_DOWN
+            }
+        }
+
+        # Movement - A or Left Arrow (37)
+        if key == "a" or code == 37 {
+            if direction != DIR_RIGHT {
+                next_direction <- DIR_LEFT
+            }
+        }
+
+        # Movement - D or Right Arrow (39)
+        if key == "d" or code == 39 {
+            if direction != DIR_LEFT {
+                next_direction <- DIR_RIGHT
+            }
+        }
+    }
+
+    if not running {
+        break
+    }
+
+    # Update game state at fixed intervals
+    time_since_update <- current_time - last_update
+    if time_since_update >= FRAME_TIME {
+        move_snake()
+        draw_game()
+        last_update <- current_time
+        frame_counter <- frame_counter + 1
+    }
+
+    # Small sleep to prevent CPU overuse
+    datetime.sleep_ms(10)
+}
+
+# Game over
+if game_over {
+    play_death_sound()
+    draw_game()
+    say("")
+    say(color.bright_yellow("═════════════════════════════════════════════════════════════"))
+    say(color.bold(color.bright_cyan("                    🏆 FINAL SCORE: " + str(score) + " 🏆")))
+    say(color.bright_magenta("                  Snake Length: " + str(len(snake))))
+    say(color.bright_yellow("═════════════════════════════════════════════════════════════"))
+    say("")
+    say(color.green("Press any key to exit..."))
+
+    while yes {
+        r <- input.poll()
+        if r["ok"] == yes {
+            break
+        }
+        datetime.sleep_ms(50)
+    }
+}
+
+# Cleanup
+input.disable_raw()
+clear_screen()
+say(color.bold(color.bright_green("Thanks for playing Snake! 🐍")))

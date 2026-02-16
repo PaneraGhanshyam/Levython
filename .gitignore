@@ -29,6 +29,8 @@ test_*
 # Build outputs
 build/
 dist/
+installer-build/
+installer-output/
 
 # Temporary files
 *.tmp
@@ -52,3 +54,22 @@ __pycache__/
 docs/
 docs/build/
 docs/_build/
+
+# GitHub Actions - Internal documentation (not for end users)
+GITHUB_ACTIONS_SETUP.md
+RELEASE_CHECKLIST.md
+CREATE_RELEASE.md
+IMPLEMENTATION_COMPLETE.md
+.github/BADGES.md
+.github/QUICK_START.md
+.github/RELEASE_GUIDE.md
+.github/WORKFLOW_DIAGRAM.md
+
+# Installer build artifacts
+*.dmg
+*.deb
+Levython-*.tar.gz
+Levython-Portable-*.zip
+levython_*.deb
+levython-x86_64
+levython-arm64
