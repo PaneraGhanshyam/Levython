@@ -1886,7 +1886,7 @@ enum class ObjectType {
 
 // ASTNode Definition
 enum class TokType {
-    IDENTIFIER, NUMBER, STRING, TRUE, FALSE, NONE,
+    IDENTIFIER, NUMBER, STRING, BOOL_TRUE, BOOL_FALSE, NONE,
     SAY, ASK, ACT, CLASS, ABSTRACT, IS_A, INIT, TRY, CATCH, THROW,
     IF, ELSE, WHILE, FOR, IN, REPEAT, IMPORT, RETURN_TOKEN,
     BREAK, CONTINUE,  // Loop control
@@ -2258,10 +2258,10 @@ public:
         keywords["import"] = TokType::IMPORT;
         keywords["break"] = TokType::BREAK;      // Loop control
         keywords["continue"] = TokType::CONTINUE; // Loop control
-        keywords["yes"] = TokType::TRUE;
-        keywords["no"] = TokType::FALSE;
-        keywords["true"] = TokType::TRUE;        // Python-style booleans
-        keywords["false"] = TokType::FALSE;      // Python-style booleans
+        keywords["yes"] = TokType::BOOL_TRUE;
+        keywords["no"] = TokType::BOOL_FALSE;
+        keywords["true"] = TokType::BOOL_TRUE;        // Python-style booleans
+        keywords["false"] = TokType::BOOL_FALSE;      // Python-style booleans
         keywords["none"] = TokType::NONE;
         keywords["and"] = TokType::AND;
         keywords["or"] = TokType::OR;
@@ -2958,8 +2958,8 @@ class Parser {
     }
 
     std::unique_ptr<ASTNode> parse_primary() {
-        if (match({TokType::FALSE})) return std::make_unique<ASTNode>(NodeType::LITERAL, previous());
-        if (match({TokType::TRUE})) return std::make_unique<ASTNode>(NodeType::LITERAL, previous());
+        if (match({TokType::BOOL_FALSE})) return std::make_unique<ASTNode>(NodeType::LITERAL, previous());
+        if (match({TokType::BOOL_TRUE})) return std::make_unique<ASTNode>(NodeType::LITERAL, previous());
         if (match({TokType::NONE})) return std::make_unique<ASTNode>(NodeType::LITERAL, previous());
         if (match({TokType::NUMBER})) {
             auto node = std::make_unique<ASTNode>(NodeType::LITERAL, previous());
@@ -5249,8 +5249,8 @@ Value evaluate(ASTNode* node, std::shared_ptr<Environment> env, bool is_method) 
                     }
                 }
                 if (node->token.type == TokType::STRING) return Value(node->value);
-                if (node->token.type == TokType::TRUE) return Value(true);
-                if (node->token.type == TokType::FALSE) return Value(false);
+                if (node->token.type == TokType::BOOL_TRUE) return Value(true);
+                if (node->token.type == TokType::BOOL_FALSE) return Value(false);
                 if (node->token.type == TokType::NONE) return Value(ObjectType::NONE);
                 if (node->value == "list") {
                     Value list_val(ObjectType::LIST);
@@ -6829,7 +6829,7 @@ struct ProcessManagerState {
         
         void* handle = nullptr;
 #ifdef _WIN32
-        handle = OpenProcess(access_flags, FALSE, static_cast<DWORD>(pid));
+        handle = OpenProcess(access_flags, 0, static_cast<DWORD>(pid));
         if (!handle) {
             return nullptr;
         }
@@ -7086,7 +7086,7 @@ struct DisplayAccessState {
                 
                 state->displays.push_back(info);
             }
-            return TRUE;
+            return 1;
         };
         EnumDisplayMonitors(nullptr, nullptr, enum_proc, reinterpret_cast<LPARAM>(this));
         
@@ -7196,7 +7196,7 @@ struct DisplayAccessState {
         DWORD ex_style = WS_EX_TOPMOST | WS_EX_LAYERED;
         if (transparent) ex_style |= WS_EX_TRANSPARENT;
         
-        HWND hwnd = CreateWindowEx(
+        HWND hwnd = CreateWindowExW(
             ex_style,
             L"STATIC",
             L"Levython Overlay",
@@ -8021,7 +8021,7 @@ bool PrivilegeEscalatorState::check_is_elevated() {
 bool PrivilegeEscalatorState::check_is_admin() {
 #ifdef _WIN32
     // Check if user is in Administrators group
-    BOOL is_admin = FALSE;
+    BOOL is_admin = 0;
     SID_IDENTIFIER_AUTHORITY nt_authority = SECURITY_NT_AUTHORITY;
     PSID admin_group = nullptr;
     
@@ -8033,7 +8033,7 @@ bool PrivilegeEscalatorState::check_is_admin() {
         FreeSid(admin_group);
     }
     
-    return is_admin != FALSE;
+    return is_admin != 0;
 #else
     // On Unix, admin means UID 0 (root) or member of sudo/wheel group
     if (geteuid() == 0) return true;
@@ -8251,7 +8251,7 @@ struct EventListenerState {
 #endif
     {
 #ifdef _WIN32
-        stop_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        stop_event = CreateEvent(NULL, 1, 0, NULL);
 #else
         stop_pipe[0] = -1;
         stop_pipe[1] = -1;
@@ -10009,9 +10009,9 @@ Value builtin_os_lstat(const std::vector<Value> &args) {
     if (!time_ec) mtime = file_time_to_time_t(ftime);
     result.data.map["size"] = Value(size);
     result.data.map["mode"] = Value(0L);
-    result.data.map["atime"] = Value(mtime);
-    result.data.map["mtime"] = Value(mtime);
-    result.data.map["ctime"] = Value(mtime);
+    result.data.map["atime"] = Value(static_cast<long>(mtime));
+    result.data.map["mtime"] = Value(static_cast<long>(mtime));
+    result.data.map["ctime"] = Value(static_cast<long>(mtime));
     result.data.map["is_dir"] = Value(is_dir);
     result.data.map["is_file"] = Value(is_file);
     result.data.map["is_symlink"] = Value(is_symlink);
@@ -10311,6 +10311,7 @@ Value builtin_os_setsid(const std::vector<Value> &args) {
 #endif
 }
 
+#ifndef _WIN32
 static int priority_kind_from_value(const Value &v) {
     if (v.type == ObjectType::INTEGER) return static_cast<int>(v.data.integer);
     if (v.type == ObjectType::FLOAT) return static_cast<int>(v.data.floating);
@@ -10320,6 +10321,7 @@ static int priority_kind_from_value(const Value &v) {
     if (kind == "user") return PRIO_USER;
     throw std::runtime_error("os.priority kind must be 'process', 'pgrp', or 'user'.");
 }
+#endif
 
 Value builtin_os_nice(const std::vector<Value> &args) {
     if (args.size() != 1) {
@@ -10947,7 +10949,7 @@ Value builtin_os_run(const std::vector<Value> &args) {
     ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
     si.cb = sizeof(si);
-    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, 0, 0, nullptr, nullptr, &si, &pi);
     if (!ok) return Value(-1L);
     DWORD wait_ms = timeout_ms == 0 ? INFINITE : static_cast<DWORD>(timeout_ms);
     DWORD wait_rc = WaitForSingleObject(pi.hProcess, wait_ms);
@@ -11082,7 +11084,7 @@ Value builtin_os_run_capture(const std::vector<Value> &args) {
 #ifdef _WIN32
     SECURITY_ATTRIBUTES sa;
     sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
+    sa.bInheritHandle = 1;
     sa.lpSecurityDescriptor = nullptr;
 
     HANDLE stdin_read = nullptr;
@@ -11113,7 +11115,7 @@ Value builtin_os_run_capture(const std::vector<Value> &args) {
     si.hStdOutput = stdout_write;
     si.hStdError = stderr_write;
 
-    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi);
+    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, 1, 0, nullptr, nullptr, &si, &pi);
     CloseHandle(stdin_read);
     CloseHandle(stdout_write);
     CloseHandle(stderr_write);
@@ -11288,7 +11290,7 @@ Value builtin_os_spawn_io(const std::vector<Value> &args) {
     si.hStdOutput = h_stdout;
     si.hStdError = h_stderr;
 
-    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi);
+    BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, 1, 0, nullptr, nullptr, &si, &pi);
     if (!ok) return Value(-1L);
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
@@ -11795,7 +11797,7 @@ Value builtin_os_exec(const std::vector<Value> &args) {
   ZeroMemory(&si, sizeof(si));
   ZeroMemory(&pi, sizeof(pi));
   si.cb = sizeof(si);
-  BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+  BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, 0, 0, nullptr, nullptr, &si, &pi);
   if (!ok) return Value(-1L);
   WaitForSingleObject(pi.hProcess, INFINITE);
   DWORD exit_code = 0;
@@ -11840,7 +11842,7 @@ Value builtin_os_spawn(const std::vector<Value> &args) {
   ZeroMemory(&si, sizeof(si));
   ZeroMemory(&pi, sizeof(pi));
   si.cb = sizeof(si);
-  BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+  BOOL ok = CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, 0, 0, nullptr, nullptr, &si, &pi);
   if (!ok) return Value(-1L);
   DWORD pid = pi.dwProcessId;
   CloseHandle(pi.hProcess);
@@ -11870,7 +11872,7 @@ Value builtin_os_kill(const std::vector<Value> &args) {
   long sig = args.size() == 2 ? value_to_long(args[1]) : 9;
 #ifdef _WIN32
   (void)sig;
-  HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+  HANDLE h = OpenProcess(PROCESS_TERMINATE, 0, static_cast<DWORD>(pid));
   if (!h) return Value(false);
   BOOL ok = TerminateProcess(h, 1);
   CloseHandle(h);
@@ -11925,7 +11927,7 @@ Value builtin_os_is_admin(const std::vector<Value> &args) {
     throw std::runtime_error("os.is_admin() expects 0 arguments.");
   }
 #ifdef _WIN32
-  BOOL is_admin = FALSE;
+  BOOL is_admin = 0;
   PSID admin_group = nullptr;
   SID_IDENTIFIER_AUTHORITY nt_auth = SECURITY_NT_AUTHORITY;
   if (AllocateAndInitializeSid(&nt_auth, 2, SECURITY_BUILTIN_DOMAIN_RID,
@@ -12242,7 +12244,7 @@ Value builtin_os_hooks_hook_process_create(const std::vector<Value> &args) {
     info.data.map["event"] = Value("process_create");
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, (DWORD)pid);
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, 0, (DWORD)pid);
     if (hProcess) {
         char path[MAX_PATH];
         DWORD size = MAX_PATH;
@@ -12391,7 +12393,7 @@ Value builtin_os_hooks_inject_library(const std::vector<Value> &args) {
     
 #ifdef _WIN32
     // Windows DLL injection using CreateRemoteThread
-    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, (DWORD)pid);
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, (DWORD)pid);
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -12461,7 +12463,7 @@ Value builtin_os_hooks_hook_memory_access(const std::vector<Value> &args) {
     info.data.map["event"] = Value("memory_access");
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, FALSE, (DWORD)pid);
+    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, 0, (DWORD)pid);
     if (hProcess) {
         std::vector<unsigned char> buffer(size);
         SIZE_T bytes_read = 0;
@@ -13389,7 +13391,7 @@ Value builtin_os_processes_get_info(const std::vector<Value> &args) {
     proc_info.data.map["pid"] = Value(pid);
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -13569,7 +13571,7 @@ Value builtin_os_processes_create(const std::vector<Value> &args) {
     BOOL success = CreateProcessA(
         nullptr,
         const_cast<char*>(cmdline.c_str()),
-        nullptr, nullptr, FALSE,
+        nullptr, nullptr, 0,
         env_vars.empty() ? 0 : CREATE_UNICODE_ENVIRONMENT,
         env_vars.empty() ? nullptr : const_cast<char*>(env_block.c_str()),
         nullptr,
@@ -13633,7 +13635,7 @@ Value builtin_os_processes_terminate(const std::vector<Value> &args) {
     bool force = args.size() >= 2 ? value_to_bool(args[1]) : false;
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -13665,7 +13667,7 @@ Value builtin_os_processes_wait(const std::vector<Value> &args) {
     long timeout_ms = args.size() >= 2 ? value_to_long(args[1]) : 0;
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -13739,7 +13741,7 @@ Value builtin_os_processes_read_memory(const std::vector<Value> &args) {
     std::vector<uint8_t> buffer(size);
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_VM_READ, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -13811,7 +13813,7 @@ Value builtin_os_processes_write_memory(const std::vector<Value> &args) {
     }
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_VM_WRITE | PROCESS_VM_OPERATION, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -13878,7 +13880,7 @@ Value builtin_os_processes_inject_library(const std::vector<Value> &args) {
     
 #ifdef _WIN32
     // Windows: Classic DLL injection via CreateRemoteThread + LoadLibrary
-    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process: " + std::to_string(GetLastError()));
     }
@@ -14079,7 +14081,7 @@ Value builtin_os_processes_suspend(const std::vector<Value> &args) {
     if (Thread32First(snapshot, &te32)) {
         do {
             if (te32.th32OwnerProcessID == static_cast<DWORD>(pid)) {
-                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te32.th32ThreadID);
+                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, 0, te32.th32ThreadID);
                 if (hThread) {
                     SuspendThread(hThread);
                     CloseHandle(hThread);
@@ -14121,7 +14123,7 @@ Value builtin_os_processes_resume(const std::vector<Value> &args) {
     if (Thread32First(snapshot, &te32)) {
         do {
             if (te32.th32OwnerProcessID == static_cast<DWORD>(pid)) {
-                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te32.th32ThreadID);
+                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, 0, te32.th32ThreadID);
                 if (hThread) {
                     ResumeThread(hThread);
                     CloseHandle(hThread);
@@ -14150,7 +14152,7 @@ Value builtin_os_processes_get_priority(const std::vector<Value> &args) {
     long pid = value_to_long(args[0]);
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process");
     }
@@ -14181,7 +14183,7 @@ Value builtin_os_processes_set_priority(const std::vector<Value> &args) {
     long priority = value_to_long(args[1]);
     
 #ifdef _WIN32
-    HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, 0, static_cast<DWORD>(pid));
     if (!hProcess) {
         throw std::runtime_error("Failed to open process");
     }
@@ -14886,7 +14888,7 @@ Value builtin_os_display_update(const std::vector<Value> &args) {
             ShowWindow(hwnd, SW_SHOW);
             overlay->visible = true;
         }
-        InvalidateRect(hwnd, nullptr, FALSE);
+        InvalidateRect(hwnd, nullptr, 0);
         UpdateWindow(hwnd);
     }
     
@@ -15017,7 +15019,7 @@ Value builtin_os_display_show_cursor(const std::vector<Value> &args) {
     auto& state = get_display_access_state();
     
 #ifdef _WIN32
-    ShowCursor(TRUE);
+    ShowCursor(1);
     
 #elif __APPLE__
     CGDisplayShowCursor(kCGDirectMainDisplay);
@@ -15044,7 +15046,7 @@ Value builtin_os_display_hide_cursor(const std::vector<Value> &args) {
     auto& state = get_display_access_state();
     
 #ifdef _WIN32
-    ShowCursor(FALSE);
+    ShowCursor(0);
     
 #elif __APPLE__
     CGDisplayHideCursor(kCGDirectMainDisplay);
@@ -15482,10 +15484,10 @@ Value builtin_os_audio_is_muted(const std::vector<Value> &args) {
                                  nullptr, (void**)&endpoint_volume);
             
             if (SUCCEEDED(hr) && endpoint_volume) {
-                BOOL is_muted = FALSE;
+                BOOL is_muted = 0;
                 hr = endpoint_volume->GetMute(&is_muted);
                 if (SUCCEEDED(hr)) {
-                    muted = (is_muted != FALSE);
+                    muted = (is_muted != 0);
                 }
                 endpoint_volume->Release();
             }
@@ -15579,7 +15581,7 @@ Value builtin_os_audio_set_mute(const std::vector<Value> &args) {
                                  nullptr, (void**)&endpoint_volume);
             
             if (SUCCEEDED(hr) && endpoint_volume) {
-                hr = endpoint_volume->SetMute(muted ? TRUE : FALSE, nullptr);
+                hr = endpoint_volume->SetMute(muted ? 1 : 0, nullptr);
                 success = SUCCEEDED(hr);
                 endpoint_volume->Release();
             }
@@ -15656,7 +15658,7 @@ Value builtin_os_audio_play_sound(const std::vector<Value> &args) {
 #ifdef _WIN32
     // Windows: Use PlaySound for simple playback
     DWORD flags = SND_FILENAME | SND_ASYNC;
-    success = PlaySoundA(file_path.c_str(), nullptr, flags) != FALSE;
+    success = PlaySoundA(file_path.c_str(), nullptr, flags) != 0;
     
 #elif __APPLE__
     // macOS: Use system command for simple playback (afplay)
@@ -16440,7 +16442,7 @@ Value builtin_os_privileges_enable(const std::vector<Value> &args) {
     tp.Privileges[0].Luid = privilege_luid;
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
     
-    if (!AdjustTokenPrivileges(state.process_token, FALSE, &tp, 
+    if (!AdjustTokenPrivileges(state.process_token, 0, &tp, 
                                sizeof(TOKEN_PRIVILEGES), nullptr, nullptr)) {
         throw std::runtime_error("Failed to enable privilege: " + privilege_name);
     }
@@ -17001,7 +17003,7 @@ Value builtin_os_events_poll(const std::vector<Value> &args) {
         
         DWORD bytes_transferred;
         if (GetOverlappedResult(listener->directory_handle, &listener->overlapped,
-                               &bytes_transferred, FALSE)) {
+                               &bytes_transferred, 0)) {
             // Process file change notifications
             FILE_NOTIFY_INFORMATION* fni = 
                 reinterpret_cast<FILE_NOTIFY_INFORMATION*>(listener->buffer.data());
@@ -21012,8 +21014,8 @@ private:
                         else emit_constant(Value(v));
                     }
                 } else if (node->token.type == TokType::STRING) emit_constant(Value(node->token.lexeme));
-                else if (node->token.type == TokType::TRUE) emit(OpCode::OP_TRUE);
-                else if (node->token.type == TokType::FALSE) emit(OpCode::OP_FALSE);
+                else if (node->token.type == TokType::BOOL_TRUE) emit(OpCode::OP_TRUE);
+                else if (node->token.type == TokType::BOOL_FALSE) emit(OpCode::OP_FALSE);
                 else if (node->token.type == TokType::NONE) emit(OpCode::OP_NONE);
                 else if (node->token.type == TokType::LBRACKET) {
                     for (auto& c : node->children) compile_node(c.get());
@@ -28235,7 +28237,8 @@ int build_native_executable(const std::string& self_exe_path,
 // Main function to run the interpreter
 int main(int argc, char* argv[]) {
     os_bindings::set_cli_args(argc, argv);
-    // Build command:
+    // Build command:aaaHello!
+
     // levython build <input.levy|.ly> [-o output] [--target native|windows|linux|macos|triple]
     //                                  [--runtime /path/to/runtime] [--source-root /path/to/repo]
     if (argc >= 2 && std::string(argv[1]) == "build") {
