@@ -14948,7 +14948,15 @@ Value builtin_os_display_capture_screen(const std::vector<Value> &args) {
 #elif __APPLE__
     CGDirectDisplayID display_id_cg = static_cast<CGDirectDisplayID>(
         reinterpret_cast<uintptr_t>(display->native_handle));
-    CGImageRef image = CGDisplayCreateImage(display_id_cg);
+    
+    // Fallback for macOS 15+ (CGDisplayCreateImage deprecated)
+    CGRect display_bounds = CGDisplayBounds(display_id_cg);
+    CGImageRef image = nullptr;
+    
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    image = CGDisplayCreateImage(display_id_cg);
+    #pragma clang diagnostic pop
     
     if (image) {
         size_t width = CGImageGetWidth(image);
@@ -15056,11 +15064,14 @@ Value builtin_os_display_capture_region(const std::vector<Value> &args) {
     ReleaseDC(nullptr, hScreenDC);
     
 #elif __APPLE__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGImageRef image = CGWindowListCreateImage(
         CGRectMake(x, y, width, height),
         kCGWindowListOptionOnScreenOnly,
         kCGNullWindowID,
         kCGWindowImageDefault);
+    #pragma clang diagnostic pop
     
     if (image) {
         CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
@@ -15153,11 +15164,14 @@ Value builtin_os_display_get_pixel(const std::vector<Value> &args) {
     color.a = 255;
     
 #elif __APPLE__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGImageRef image = CGWindowListCreateImage(
-        CGRectMake(x, y, 1, 1),
+        CGRectNull,
         kCGWindowListOptionOnScreenOnly,
         kCGNullWindowID,
         kCGWindowImageDefault);
+    #pragma clang diagnostic pop
     
     if (image) {
         uint8_t pixel_data[4] = {0};

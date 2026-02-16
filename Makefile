@@ -34,17 +34,17 @@ else ifeq ($(UNAME_S),Linux)
 else ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
     PLATFORM = Windows
     OUT = levython.exe
-    HTTP_LIBS += -lws2_32 -lcrypt32
+    HTTP_LIBS += -lws2_32 -lcrypt32 -lgdi32 -lwinmm -lole32 -loleaut32 -luuid
     INSTALL_DIR = C:/Program Files/Levython
 else ifeq ($(findstring MSYS,$(UNAME_S)),MSYS)
     PLATFORM = Windows
     OUT = levython.exe
-    HTTP_LIBS += -lws2_32 -lcrypt32
+    HTTP_LIBS += -lws2_32 -lcrypt32 -lgdi32 -lwinmm -lole32 -loleaut32 -luuid
     INSTALL_DIR = C:/Program Files/Levython
 else ifeq ($(findstring CYGWIN,$(UNAME_S)),CYGWIN)
     PLATFORM = Windows
     OUT = levython.exe
-    HTTP_LIBS += -lws2_32 -lcrypt32
+    HTTP_LIBS += -lws2_32 -lcrypt32 -lgdi32 -lwinmm -lole32 -loleaut32 -luuid
     INSTALL_DIR = C:/Program Files/Levython
 else
     PLATFORM = Unknown
