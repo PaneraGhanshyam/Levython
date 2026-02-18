@@ -5,6 +5,16 @@ All notable changes to the Levython VS Code extension will be documented in this
 ## [1.0.3] - 2026-02-14
 
 ### Added
+- **Color Module Support** - Complete terminal color and styling support
+  - 15+ color module snippets for terminal output
+  - Basic colors: red, green, yellow, blue, magenta, cyan, white, black
+  - Bright color variants for enhanced visibility
+  - Background color options
+  - Text styles: bold, dim, italic, underline, blink, reverse, hidden
+  - RGB color support with custom 256-color palettes
+  - Combined style snippets for complex formatting
+  - Import and usage examples
+
 - **Official Dragon Logo Icon** - Authentic Levython dragon for all .levy and .ly files
   - High-quality SVG rendering of the official Levython dragon
   - Fiery red/orange gradient matching brand identity
@@ -57,10 +67,13 @@ All notable changes to the Levython VS Code extension will be documented in this
   - Show snippets by default
 
 ### Changed
+- Updated extension description to include terminal colors
+- Added `terminal-colors` and `ansi-colors` keywords
 - Updated description to emphasize Copilot readiness
 - Enhanced keywords for better marketplace discoverability
 - Improved package.json structure and metadata
 - Updated icon reference in package.json
+- Improved snippet organization
 
 ### Fixed
 - Indentation rules for new keywords
@@ -82,6 +95,9 @@ All notable changes to the Levython VS Code extension will be documented in this
 
 ### Core Language (40+)
 Variables, functions, classes, conditionals, loops, exceptions, imports
+
+### Color Module (15+)
+Terminal colors, text styles, RGB colors, background colors, combined styles
 
 ### OS Modules (50+)
 - **OS.Hooks**: System event monitoring (10 snippets)

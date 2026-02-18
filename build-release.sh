@@ -68,7 +68,9 @@ if [ "$PLATFORM" = "macos" ]; then
         src/levython.cpp src/http_client.cpp \
         -o levython \
         -lssl -lcrypto \
-        -framework Security -framework CoreFoundation
+        -framework Security -framework CoreFoundation \
+        -framework CoreGraphics -framework ApplicationServices \
+        -framework CoreAudio -framework AudioToolbox
 else
     # Linux build with strip flag
     $COMPILER -std=c++17 -O3 -march=native -DNDEBUG \
@@ -77,6 +79,7 @@ else
         src/levython.cpp src/http_client.cpp \
         -o levython \
         -lssl -lcrypto \
+        -ldl -lasound -lX11 -lXtst \
         -s
 fi
 

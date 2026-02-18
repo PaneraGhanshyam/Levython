@@ -2367,6 +2367,12 @@ static bool parse_int64_strict(const std::string& s, int64_t& out) {
     }
 }
 
+static bool is_finite_ieee754(double value) {
+    uint64_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return ((bits >> 52) & 0x7ffULL) != 0x7ffULL;
+}
+
 static bool parse_double_strict(const std::string& s, double& out) {
     std::string trimmed = trim_copy(s);
     if (trimmed.empty()) return false;
@@ -2374,7 +2380,7 @@ static bool parse_double_strict(const std::string& s, double& out) {
     try {
         double v = std::stod(trimmed, &pos);
         if (pos != trimmed.size()) return false;
-        if (!std::isfinite(v)) return false;
+        if (!is_finite_ieee754(v)) return false;
         out = v;
         return true;
     } catch (...) {

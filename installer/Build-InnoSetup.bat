@@ -131,6 +131,10 @@ if exist "%RELEASES_DIR%\levython-windows-x64.exe" (
     echo [OK] x64 executable found
     set /a EXE_FOUND+=1
 )
+if exist "%SCRIPT_DIR%\levython-windows-x64.exe" (
+    echo [OK] x64 executable found in installer directory
+    set /a EXE_FOUND+=1
+)
 if exist "%RELEASES_DIR%\levython-windows-x86.exe" (
     echo [OK] x86 executable found
     set /a EXE_FOUND+=1
@@ -141,7 +145,7 @@ if exist "%RELEASES_DIR%\levython-windows-arm64.exe" (
 )
 
 if !EXE_FOUND! EQU 0 (
-    echo [ERROR] No executables found in releases directory!
+    echo [ERROR] No executables found in releases or installer directory!
     echo [ERROR] Please build Levython first using Build-Installer.ps1 or BUILD-SIMPLE.bat
     echo.
     pause

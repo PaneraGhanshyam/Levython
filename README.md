@@ -323,6 +323,26 @@ try {
 - `chr(ascii)` - Convert ASCII code to character
 - `ord(key)` - Convert character to ASCII code
 
+#### `color`
+**Terminal Color & Styling**
+- **Basic Colors**: `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `black`
+- **Bright Colors**: `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`
+- **Background Colors**: `bg_red`, `bg_green`, `bg_yellow`, `bg_blue`, `bg_magenta`, `bg_cyan`, `bg_white`, `bg_black`
+- **Text Styles**: `bold`, `dim`, `italic`, `underline`, `blink`, `reverse`, `hidden`
+- **RGB Colors**: `rgb(r, g, b, text)` - Custom 256-color foreground (0-255)
+- **RGB Background**: `bg_rgb(r, g, b, text)` - Custom 256-color background (0-255)
+- **Utilities**: `reset()`, `colorize(text, color_name)`
+- **Constants**: `RESET`, `RED`, `GREEN`, `YELLOW`, `BLUE`, `MAGENTA`, `CYAN`, `WHITE`
+
+**Example:**
+```levy
+import color
+say(color.red("Error: File not found"))
+say(color.bold(color.green("Success!")))
+say(color.rgb(255, 100, 0, "Custom orange text"))
+say(color.bg_blue(color.yellow("Yellow on blue")))
+```
+
 ---
 
 ## Advanced System Modules (New in 1.0.3)

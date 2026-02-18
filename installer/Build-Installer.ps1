@@ -284,20 +284,68 @@ function Find-Compiler {
 function Find-OpenSSL {
     Write-Section "OpenSSL Detection"
 
-    $candidates = @(
-        $env:OPENSSL_DIR,
-        "C:\OpenSSL-Win64",
-        "C:\OpenSSL-Win32",
-        "C:\OpenSSL",
-        "${env:ProgramFiles}\OpenSSL-Win64",
-        "${env:ProgramFiles}\OpenSSL",
-        "${env:ProgramFiles(x86)}\OpenSSL-Win32",
-        "${env:ProgramFiles(x86)}\OpenSSL",
-        "C:\vcpkg\installed\x64-windows",
-        "C:\vcpkg\installed\x86-windows",
-        "${env:VCPKG_ROOT}\installed\x64-windows",
-        "${env:VCPKG_ROOT}\installed\x86-windows"
-    ) | Where-Object { $_ } | Select-Object -Unique
+    $candidates = @()
+    
+    # Environment variable
+    if ($env:OPENSSL_DIR) {
+        $candidates += $env:OPENSSL_DIR
+    }
+    
+    # Scoop installations (user)
+    if ($env:USERPROFILE) {
+        $candidates += "$env:USERPROFILE\scoop\apps\openssl\current"
+        $candidates += "$env:USERPROFILE\scoop\apps\openssl-3\current"
+        $candidates += "$env:USERPROFILE\scoop\apps\mingw\current\opt"
+        $candidates += "$env:USERPROFILE\scoop\apps\mingw\current"
+    }
+    
+    # Scoop installations (global)
+    $candidates += "C:\ProgramData\scoop\apps\openssl\current"
+    $candidates += "C:\ProgramData\scoop\apps\openssl-3\current"
+    
+    # Standard Windows installations (x64)
+    $candidates += "C:\OpenSSL-Win64"
+    $candidates += "${env:ProgramFiles}\OpenSSL-Win64"
+    $candidates += "C:\Program Files\OpenSSL-Win64"
+    $candidates += "${env:ProgramFiles}\OpenSSL"
+    $candidates += "C:\Program Files\OpenSSL"
+    
+    # Standard Windows installations (x86)
+    $candidates += "C:\OpenSSL-Win32"
+    $candidates += "${env:ProgramFiles(x86)}\OpenSSL-Win32"
+    $candidates += "C:\Program Files (x86)\OpenSSL-Win32"
+    $candidates += "${env:ProgramFiles(x86)}\OpenSSL"
+    $candidates += "C:\Program Files (x86)\OpenSSL"
+    
+    # vcpkg installations
+    $candidates += "C:\vcpkg\installed\x64-windows"
+    $candidates += "C:\vcpkg\installed\x86-windows"
+    if ($env:VCPKG_ROOT) {
+        $candidates += "$env:VCPKG_ROOT\installed\x64-windows"
+        $candidates += "$env:VCPKG_ROOT\installed\x86-windows"
+    }
+    
+    # MSYS2/MinGW installations
+    $candidates += "C:\msys64\mingw64"
+    $candidates += "C:\msys64\ucrt64"
+    $candidates += "C:\msys64\mingw32"
+    $candidates += "C:\msys64\clang64"
+    $candidates += "C:\msys32\mingw32"
+    
+    # Check if g++ is available and get its root
+    try {
+        $gppPath = (Get-Command g++ -ErrorAction SilentlyContinue)
+        if ($gppPath) {
+            $mingwRoot = Split-Path (Split-Path $gppPath.Source)
+            $candidates += $mingwRoot
+            $candidates += "$mingwRoot\opt"
+            $candidates += "$mingwRoot\.."
+        }
+    }
+    catch { }
+    
+    # Remove duplicates and empty entries
+    $candidates = $candidates | Where-Object { $_ } | Select-Object -Unique
 
     foreach ($base in $candidates) {
         if (-not (Test-Path $base)) { continue }
@@ -309,6 +357,43 @@ function Find-OpenSSL {
         $opensslHeader = Join-Path $inc "openssl\ssl.h"
 
         if ((Test-Path $inc) -and (Test-Path $lib) -and (Test-Path $opensslHeader)) {
+            # Smart lib path resolution: check VC subdirectory layout first (manual installs from slproweb)
+            $resolvedLib = $null
+            
+            # MSVC-style: lib\VC\x64\MT, lib\VC\x64\MD, etc.
+            $vcSubPaths = @("VC\x64\MT", "VC\x64\MD", "VC\x64\MTd", "VC\x64\MDd", "VC\x86\MT", "VC\x86\MD", "VC\Win32\MT", "VC\Win32\MD")
+            foreach ($sub in $vcSubPaths) {
+                $vcLib = Join-Path $lib $sub
+                if (Test-Path (Join-Path $vcLib "libssl.lib")) {
+                    $resolvedLib = $vcLib
+                    Write-Info "Using VC lib layout: $sub"
+                    break
+                }
+            }
+            
+            # Direct lib\ with .lib files (vcpkg, chocolatey)
+            if (-not $resolvedLib) {
+                $directLibs = @("libssl.lib", "ssl.lib", "ssleay32.lib", "libssl.a", "libcrypto.a")
+                foreach ($f in $directLibs) {
+                    if (Test-Path (Join-Path $lib $f)) {
+                        $resolvedLib = $lib
+                        break
+                    }
+                }
+            }
+            
+            # MinGW .dll.a
+            if (-not $resolvedLib) {
+                if ((Get-ChildItem $lib -Filter "*.dll.a" -ErrorAction SilentlyContinue).Count -gt 0) {
+                    $resolvedLib = $lib
+                }
+            }
+            
+            if (-not $resolvedLib) {
+                Write-Warning "Headers found at $base but no libs in $lib (checked VC subdirs too)"
+                continue
+            }
+            
             # Try to find version
             $version = "Unknown"
             try {
@@ -318,17 +403,21 @@ function Find-OpenSSL {
                     if ($content -match 'OPENSSL_VERSION_TEXT\s+"OpenSSL\s+([\d.]+\w*)"') {
                         $version = $matches[1]
                     }
+                    elseif ($content -match 'OPENSSL_VERSION_STR\s+"([\d.]+\w*)"') {
+                        $version = $matches[1]
+                    }
                 }
             }
             catch { }
 
             Write-Success "Found: OpenSSL $version"
+            Write-Info "Location: $base"
             Write-Info "Include: $inc"
-            Write-Info "Library: $lib"
+            Write-Info "Library: $resolvedLib"
 
             return @{
                 Include = $inc
-                Lib = $lib
+                Lib = $resolvedLib
                 Version = $version
                 BasePath = $base
             }
@@ -336,12 +425,18 @@ function Find-OpenSSL {
     }
 
     Write-Error "OpenSSL not found!"
-    Write-Warning "Please install OpenSSL or set OPENSSL_DIR environment variable"
+    Write-Warning "Searched in all common locations including:"
+    Write-Host "  • Scoop: $env:USERPROFILE\scoop\apps\openssl\current" -ForegroundColor Gray
+    Write-Host "  • Standard: C:\OpenSSL-Win64, C:\Program Files\OpenSSL-Win64" -ForegroundColor Gray
+    Write-Host "  • vcpkg: C:\vcpkg\installed\x64-windows" -ForegroundColor Gray
+    Write-Host "  • MSYS2: C:\msys64\mingw64" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Installation options:" -ForegroundColor Yellow
     Write-Host "  1. Download from: https://slproweb.com/products/Win32OpenSSL.html" -ForegroundColor Gray
     Write-Host "  2. Install via vcpkg: vcpkg install openssl" -ForegroundColor Gray
-    Write-Host "  3. Use Chocolatey: choco install openssl" -ForegroundColor Gray
+    Write-Host "  3. Install via Scoop: scoop install openssl" -ForegroundColor Gray
+    Write-Host "  4. Install via Chocolatey: choco install openssl" -ForegroundColor Gray
+    Write-Host "  5. Set OPENSSL_DIR environment variable to your installation path" -ForegroundColor Gray
 
     throw "OpenSSL not found"
 }
@@ -533,9 +628,14 @@ function Find-InnoSetup {
 
     foreach ($path in $isccPaths) {
         if (Test-Path $path) {
-            $version = (& $path /? 2>&1 | Select-String "Inno Setup" | Out-String).Trim()
+            try {
+                $version = (& $path 2>&1 | Select-String "Inno Setup" | Select-Object -First 1 | Out-String).Trim()
+            }
+            catch {
+                $version = "Version unknown"
+            }
             Write-Success "Found: Inno Setup"
-            Write-Info $version
+            if ($version) { Write-Info $version }
             Write-Info "Path: $path"
             return $path
         }
@@ -569,8 +669,13 @@ function Build-InnoSetupInstaller {
 
     try {
         Write-Progress -Activity "Installer" -PercentComplete 20 -Status "Compiling installer"
-        $output = & $iscc $issFile 2>&1
+        $output = & $iscc $issFile 2>&1 | Out-String
         Write-Progress -Activity "Installer" -PercentComplete 100 -Status "Complete"
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Inno Setup compilation had warnings or errors"
+            Write-Host $output -ForegroundColor Yellow
+        }
 
         $installerPath = Join-Path $script:Config.ReleaseDir "levython-$($script:Config.Version)-windows-setup.exe"
 

@@ -71,26 +71,45 @@ function Find-Compiler {
 
 function Find-OpenSSL {
     $candidates = @()
-    if ($env:OPENSSL_DIR) { $candidates += $env:OPENSSL_DIR }
     
-    # Add Scoop paths
+    # Environment variable
+    if ($env:OPENSSL_DIR) { 
+        $candidates += $env:OPENSSL_DIR 
+    }
+    
+    # Scoop installations (user)
     if ($env:USERPROFILE) {
         $candidates += "$env:USERPROFILE\scoop\apps\openssl\current"
-        $candidates += "$env:USERPROFILE\scoop\apps\mingw\current\opt\include"
+        $candidates += "$env:USERPROFILE\scoop\apps\openssl-3\current"
+        $candidates += "$env:USERPROFILE\scoop\apps\mingw\current\opt"
+        $candidates += "$env:USERPROFILE\scoop\apps\mingw\current"
     }
-    $candidates += "C:\ProgramData\scoop\apps\openssl\current"
     
-    # Add architecture-specific OpenSSL paths
+    # Scoop installations (global)
+    $candidates += "C:\ProgramData\scoop\apps\openssl\current"
+    $candidates += "C:\ProgramData\scoop\apps\openssl-3\current"
+    
+    # Architecture-specific OpenSSL paths
     if ($script:Arch -eq "x86") {
         $candidates += "C:\OpenSSL-Win32"
         $candidates += "${env:ProgramFiles(x86)}\OpenSSL-Win32"
         $candidates += "C:\Program Files (x86)\OpenSSL-Win32"
+        $candidates += "${env:ProgramFiles(x86)}\OpenSSL"
+        $candidates += "C:\Program Files (x86)\OpenSSL"
         $candidates += "C:\vcpkg\installed\x86-windows"
-    } else {
+        $candidates += "C:\msys64\mingw32"
+        $candidates += "C:\msys32\mingw32"
+    } 
+    else {
         $candidates += "C:\OpenSSL-Win64"
         $candidates += "${env:ProgramFiles}\OpenSSL-Win64"
         $candidates += "C:\Program Files\OpenSSL-Win64"
+        $candidates += "${env:ProgramFiles}\OpenSSL"
+        $candidates += "C:\Program Files\OpenSSL"
         $candidates += "C:\vcpkg\installed\x64-windows"
+        $candidates += "C:\msys64\mingw64"
+        $candidates += "C:\msys64\ucrt64"
+        $candidates += "C:\msys64\clang64"
     }
     
     # Check MinGW's built-in OpenSSL
@@ -99,7 +118,11 @@ function Find-OpenSSL {
         $mingwRoot = Split-Path (Split-Path $mingwPath.Source)
         $candidates += "$mingwRoot"
         $candidates += "$mingwRoot\opt"
+        $candidates += "$mingwRoot\.."
     }
+    
+    # Remove duplicates
+    $candidates = $candidates | Where-Object { $_ } | Select-Object -Unique
 
     foreach ($base in $candidates) {
         if (-not (Test-Path $base)) { continue }
@@ -107,35 +130,47 @@ function Find-OpenSSL {
         
         # Try standard lib location first
         $lib = Join-Path $base "lib"
+        
+        # Check for OpenSSL headers
+        $sslHeader = Join-Path $inc "openssl\ssl.h"
+        if (-not (Test-Path $sslHeader)) { continue }
+        
         if ((Test-Path $inc) -and (Test-Path $lib)) {
-            # Check for MSVC-style lib structure based on architecture
+            # Smart lib path: check VC subdirectory layout first (manual installs from slproweb)
             if ($script:Arch -eq "x86") {
-                $vcLib = Join-Path $lib "VC\x86\MT"
-                if (Test-Path $vcLib) {
-                    Write-Host "  Found OpenSSL (x86): $base" -ForegroundColor Cyan
-                    return @{ Include = $inc; Lib = $vcLib }
-                }
-                $vcLib = Join-Path $lib "VC\Win32\MT"
-                if (Test-Path $vcLib) {
-                    Write-Host "  Found OpenSSL (x86): $base" -ForegroundColor Cyan
-                    return @{ Include = $inc; Lib = $vcLib }
-                }
+                $vcSubPaths = @("VC\x86\MT", "VC\Win32\MT", "VC\x86\MD", "VC\Win32\MD")
             } else {
-                $vcLib = Join-Path $lib "VC\x64\MT"
-                if (Test-Path $vcLib) {
-                    Write-Host "  Found OpenSSL (x64): $base" -ForegroundColor Cyan
+                $vcSubPaths = @("VC\x64\MT", "VC\x64\MD", "VC\x64\MTd", "VC\x64\MDd")
+            }
+            
+            foreach ($sub in $vcSubPaths) {
+                $vcLib = Join-Path $lib $sub
+                if (Test-Path (Join-Path $vcLib "libssl.lib")) {
+                    Write-Host "  Found OpenSSL ($($script:Arch)): $base [lib\$sub]" -ForegroundColor Cyan
                     return @{ Include = $inc; Lib = $vcLib }
                 }
             }
             
-            # Check if lib contains actual .lib or .a files
-            $hasLibs = (Get-ChildItem $lib -Filter "*.lib" -ErrorAction SilentlyContinue) -or (Get-ChildItem $lib -Filter "*.a" -ErrorAction SilentlyContinue)
-            if ($hasLibs) {
-                Write-Host "  Found OpenSSL: $base" -ForegroundColor Cyan
-                return @{ Include = $inc; Lib = $lib }
+            # Check for libs directly in lib\ (.lib, .a, .dll.a)
+            $directLibs = @("libssl.lib", "libssl.a", "libssl.dll.a", "ssl.lib", "ssleay32.lib")
+            foreach ($f in $directLibs) {
+                if (Test-Path (Join-Path $lib $f)) {
+                    Write-Host "  Found OpenSSL: $base" -ForegroundColor Cyan
+                    return @{ Include = $inc; Lib = $lib }
+                }
             }
         }
     }
+    
+    Write-Host "  [ERROR] OpenSSL not found in any standard location!" -ForegroundColor Red
+    Write-Host "  Searched locations:" -ForegroundColor Yellow
+    Write-Host "    - Scoop: $env:USERPROFILE\scoop\apps\openssl" -ForegroundColor Gray
+    Write-Host "    - Standard: C:\OpenSSL-Win64, C:\Program Files\OpenSSL" -ForegroundColor Gray
+    Write-Host "    - vcpkg: C:\vcpkg\installed\x64-windows" -ForegroundColor Gray
+    Write-Host "    - MSYS2: C:\msys64\mingw64" -ForegroundColor Gray
+    Write-Host "  Install OpenSSL from: https://slproweb.com/products/Win32OpenSSL.html" -ForegroundColor Yellow
+    Write-Host "  Or install via: scoop install openssl, vcpkg install openssl, or choco install openssl" -ForegroundColor Yellow
+    
     return $null
 }
 

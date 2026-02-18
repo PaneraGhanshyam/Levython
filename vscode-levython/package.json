@@ -1,98 +1,107 @@
 {
-    "name": "levython",
-    "displayName": "Levython - Complete Language Support",
-    "description": "Full language support for Levython 1.0.3 - JIT-compiled language with powerful OS automation, async/await, HTTP, crypto, threading, and system-level control. Optimized for GitHub Copilot.",
-    "version": "1.0.3",
-    "publisher": "levython",
-    "engines": {
-        "vscode": "^1.74.0"
-    },
-    "categories": [
-        "Programming Languages",
-        "Snippets",
-        "Formatters",
-        "Other"
-    ],
-    "keywords": [
-        "levython",
-        "levy",
-        "programming",
-        "jit",
-        "fast",
-        "systems-programming",
-        "os-automation",
-        "async",
-        "http",
-        "crypto",
-        "threading",
-        "process-control",
-        "system-hooks",
-        "input-automation",
-        "audio-control",
-        "display-capture",
-        "privileges",
-        "event-monitoring",
-        "persistence",
-        "copilot-ready"
-    ],
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/levython/Levython"
-    },
-    "icon": "icons/icon.png",
-    "contributes": {
-        "languages": [
-            {
-                "id": "levython",
-                "aliases": ["Levython", "levython", "levy"],
-                "extensions": [".levy", ".ly"],
-                "configuration": "./language-configuration.json",
-                "icon": {
-                    "light": "./icons/icon.png",
-                    "dark": "./icons/icon.png"
-                }
-            }
+  "name": "levython",
+  "displayName": "Levython - Complete Language Support",
+  "description": "Full language support for Levython 1.0.3 - JIT-compiled language with powerful OS automation, terminal colors, async/await, HTTP, crypto, threading, and system-level control. Optimized for GitHub Copilot.",
+  "version": "1.0.3",
+  "publisher": "levython",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters",
+    "Other"
+  ],
+  "keywords": [
+    "levython",
+    "levy",
+    "programming",
+    "jit",
+    "fast",
+    "systems-programming",
+    "os-automation",
+    "terminal-colors",
+    "ansi-colors",
+    "async",
+    "http",
+    "crypto",
+    "threading",
+    "process-control",
+    "system-hooks",
+    "input-automation",
+    "audio-control",
+    "display-capture",
+    "privileges",
+    "event-monitoring",
+    "persistence",
+    "copilot-ready"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/levython/Levython"
+  },
+  "icon": "icons/icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "levython",
+        "aliases": [
+          "Levython",
+          "levython",
+          "levy"
         ],
-        "iconThemes": [
-            {
-                "id": "levython-icons",
-                "label": "Levython Icons",
-                "path": "./icons/levython-icon-theme.json"
-            }
+        "extensions": [
+          ".levy",
+          ".ly"
         ],
-        "grammars": [
-            {
-                "language": "levython",
-                "scopeName": "source.levython",
-                "path": "./syntaxes/levython.tmLanguage.json"
-            }
-        ],
-        "snippets": [
-            {
-                "language": "levython",
-                "path": "./snippets/levython.json"
-            }
-        ],
-        "configurationDefaults": {
-            "[levython]": {
-                "editor.tabSize": 4,
-                "editor.insertSpaces": false,
-                "editor.detectIndentation": true,
-                "editor.formatOnType": true,
-                "editor.autoIndent": "full",
-                "editor.semanticHighlighting.enabled": true,
-                "editor.wordBasedSuggestions": "matchingDocuments",
-                "editor.quickSuggestions": {
-                    "other": true,
-                    "comments": false,
-                    "strings": true
-                },
-                "editor.suggest.snippetsPreventQuickSuggestions": false,
-                "editor.suggest.showSnippets": true,
-                "editor.acceptSuggestionOnCommitCharacter": true,
-                "editor.acceptSuggestionOnEnter": "on",
-                "editor.snippetSuggestions": "top"
-            }
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/icon.png",
+          "dark": "./icons/icon.png"
         }
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "levython-icons",
+        "label": "Levython Icons",
+        "path": "./icons/levython-icon-theme.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "levython",
+        "scopeName": "source.levython",
+        "path": "./syntaxes/levython.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "levython",
+        "path": "./snippets/levython.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[levython]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false,
+        "editor.detectIndentation": true,
+        "editor.formatOnType": true,
+        "editor.autoIndent": "full",
+        "editor.semanticHighlighting.enabled": true,
+        "editor.wordBasedSuggestions": "matchingDocuments",
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        },
+        "editor.suggest.snippetsPreventQuickSuggestions": false,
+        "editor.suggest.showSnippets": true,
+        "editor.acceptSuggestionOnCommitCharacter": true,
+        "editor.acceptSuggestionOnEnter": "on",
+        "editor.snippetSuggestions": "top"
+      }
     }
+  }
 }

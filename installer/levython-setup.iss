@@ -24,6 +24,16 @@
 #define MyAppDescription "High Performance JIT-Compiled Programming Language"
 #define MyAppMotto "Be better than yesterday"
 
+#ifexist "levython-windows-x64.exe"
+  #define MyAppExeSource "levython-windows-x64.exe"
+#else
+  #ifexist "..\releases\levython-windows-x64.exe"
+    #define MyAppExeSource "..\releases\levython-windows-x64.exe"
+  #else
+    #error "Missing levython-windows-x64.exe (expected in installer\\ or releases\\). Build Levython first."
+  #endif
+#endif
+
 [Setup]
 ; ============================================================================
 ; APP IDENTITY
@@ -58,9 +68,10 @@ DisableReadyPage=no
 DisableFinishedPage=no
 
 ; Custom branding with logo
-SetupIconFile=..\icon.png
-WizardImageFile=..\icon.png
-WizardSmallImageFile=..\icon.png
+; NOTE: SetupIconFile requires .ico, WizardImageFile/WizardSmallImageFile require .bmp
+SetupIconFile=icon.ico
+WizardImageFile=wizard-large.bmp
+WizardSmallImageFile=wizard-small.bmp
 
 ; Modern aesthetics
 WindowVisible=yes
@@ -72,13 +83,13 @@ AlwaysShowDirOnReadyPage=yes
 AlwaysShowGroupOnReadyPage=yes
 
 ; ============================================================================
-; COMPRESSION & PERFORMANCE
+; COMPRESSION & PERFORMANCE (reduced for memory efficiency)
 ; ============================================================================
-Compression=lzma2/ultra64
+Compression=lzma2/fast
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
-LZMANumBlockThreads=8
-LZMADictionarySize=1048576
+LZMANumBlockThreads=2
+LZMADictionarySize=262144
 
 ; ============================================================================
 ; ARCHITECTURE SUPPORT
@@ -129,7 +140,6 @@ Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
-Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "dutch"; MessagesFile: "compiler:Languages\Dutch.isl"
 Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 
@@ -154,7 +164,7 @@ english.ComponentsCore=Core Runtime (Required)
 [Tasks]
 Name: "addtopath"; Description: "Add {#MyAppName} to system PATH (recommended for command-line access)"; GroupDescription: "System Configuration:"; Flags: checkedonce
 Name: "associatefiles"; Description: "Associate .levy and .ly files with {#MyAppName}"; GroupDescription: "File Associations:"; Flags: checkedonce
-Name: "installvscode"; Description: "Install VS Code extension for syntax highlighting and IntelliSense"; GroupDescription: "Development Tools:"; Flags: checkedonce; Check: IsVSCodeInstalled
+Name: "installvscode"; Description: "Install VS Code extension for syntax highlighting and IntelliSense"; GroupDescription: "Development Tools:"; Flags: checkedonce; Check: CanInstallVSCodeExtension
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}:"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "Create a &Quick Launch icon"; GroupDescription: "{cm:AdditionalIcons}:"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
 
@@ -166,7 +176,6 @@ Name: "{app}\bin"
 Name: "{app}\lib"
 Name: "{app}\examples"
 Name: "{app}\docs"
-Name: "{app}\vscode-extension"
 Name: "{userappdata}\Levython"; Permissions: users-modify
 
 ; ============================================================================
@@ -176,12 +185,9 @@ Name: "{userappdata}\Levython"; Permissions: users-modify
 ; ============================================================================
 ; MAIN EXECUTABLE - Architecture Specific
 ; ============================================================================
-Source: "..\releases\levython-windows-x64.exe"; DestDir: "{app}\bin"; DestName: "levython.exe"; Flags: ignoreversion; Check: Is64BitInstallMode and not IsARM64; Components: core
-Source: "..\releases\levython-windows-x86.exe"; DestDir: "{app}\bin"; DestName: "levython.exe"; Flags: ignoreversion solidbreak; Check: not Is64BitInstallMode; Components: core
-Source: "..\releases\levython-windows-arm64.exe"; DestDir: "{app}\bin"; DestName: "levython.exe"; Flags: ignoreversion solidbreak; Check: IsARM64; Components: core
-
-; Fallback to unified exe if arch-specific not available
-Source: "..\levython.exe"; DestDir: "{app}\bin"; DestName: "levython.exe"; Flags: ignoreversion skipifsourcedoesntexist; Components: core
+Source: "{#MyAppExeSource}"; DestDir: "{app}\bin"; DestName: "levython.exe"; Flags: ignoreversion; Check: Is64BitInstallMode and not IsARM64; Components: core
+; Keep root executable in sync for legacy PATH entries that point to {app}
+Source: "{#MyAppExeSource}"; DestDir: "{app}"; DestName: "levython.exe"; Flags: ignoreversion; Check: Is64BitInstallMode and not IsARM64; Components: core
 
 ; ============================================================================
 ; BRANDING & ICONS
@@ -197,17 +203,17 @@ Source: "..\CHANGELOG.md"; DestDir: "{app}\docs"; Flags: ignoreversion; Componen
 Source: "..\IMPLEMENTATION_SUMMARY.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
 Source: "..\JIT_OPTIMIZATIONS.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
 Source: "..\QUICKREF.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
-Source: "..\*.md"; DestDir: "{app}\docs"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
+; Removed wildcard *.md to prevent memory issues - only include specific docs above
 
 ; ============================================================================
-; EXAMPLES
+; EXAMPLES (only .levy files to save space)
 ; ============================================================================
-Source: "..\examples\*"; DestDir: "{app}\examples"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: docs
+Source: "..\examples\*.levy"; DestDir: "{app}\examples"; Flags: ignoreversion skipifsourcedoesntexist; Components: docs
 
 ; ============================================================================
-; VS CODE EXTENSION
+; VS CODE EXTENSION PACKAGE (VSIX only)
 ; ============================================================================
-Source: "..\vscode-levython\*"; DestDir: "{app}\vscode-extension"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Components: vscode
+Source: "..\vscode-levython\levython-{#MyAppVersion}.vsix"; DestDir: "{app}"; DestName: "levython.vsix"; Flags: ignoreversion skipifsourcedoesntexist; Components: vscode
 
 ; ============================================================================
 ; INSTALLER SCRIPTS
@@ -221,7 +227,7 @@ Source: "Install-Levython.bat"; DestDir: "{app}"; Flags: ignoreversion skipifsou
 [Components]
 Name: "core"; Description: "{cm:ComponentsCore}"; Types: full compact custom; Flags: fixed
 Name: "docs"; Description: "{cm:ComponentsDocs}"; Types: full
-Name: "vscode"; Description: "{cm:ComponentsVSCode}"; Types: full; Check: IsVSCodeInstalled
+Name: "vscode"; Description: "{cm:ComponentsVSCode}"; Types: full; Check: CanInstallVSCodeExtension
 
 ; ============================================================================
 ; ICONS - START MENU & DESKTOP
@@ -278,7 +284,7 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Filename: "{app}\bin\{#MyAppExeName}"; Parameters: "--version"; Description: "Verifying {#MyAppName} installation..."; Flags: runhidden nowait postinstall skipifsilent
 
 ; Install VS Code extension
-Filename: "{code:GetVSCodeCmdPath}"; Parameters: "--install-extension ""{app}\vscode-extension"" --force"; StatusMsg: "Installing VS Code extension..."; Flags: runhidden waituntilterminated; Tasks: installvscode; Check: IsVSCodeInstalled
+Filename: "{code:GetVSCodeCmdPath}"; Parameters: "--install-extension ""{app}\levython.vsix"" --force"; StatusMsg: "Installing VS Code extension..."; Flags: runhidden waituntilterminated; Components: vscode; Tasks: installvscode; Check: CanInstallVSCodeExtension
 
 ; Optional post-install actions
 Filename: "{app}\docs\README.md"; Description: "View {#MyAppName} Documentation"; Flags: postinstall nowait skipifsilent shellexec unchecked
@@ -290,14 +296,14 @@ Filename: "{app}\bin\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "Launch
 ; ============================================================================
 [UninstallRun]
 ; Remove from PATH
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -Command ""$p=[Environment]::GetEnvironmentVariable('Path','Machine');$np=($p-split';'|Where-Object{{$_ -ne '{app}\bin'}}) -join ';';[Environment]::SetEnvironmentVariable('Path',$np,'Machine')"""; Flags: runhidden
+Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hidden -Command ""$p=[Environment]::GetEnvironmentVariable('Path','Machine');$np=($p-split';'|Where-Object{{$_ -and $_ -ne '{app}\bin' -and $_ -ne '{app}'}}) -join ';';[Environment]::SetEnvironmentVariable('Path',$np,'Machine')"""; Flags: runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\lib"
 Type: filesandordirs; Name: "{app}\docs"
 Type: filesandordirs; Name: "{app}\examples"
-Type: filesandordirs; Name: "{app}\vscode-extension"
+Type: files; Name: "{app}\levython.vsix"
 Type: files; Name: "{app}\icon.png"
 Type: dirifempty; Name: "{app}"
 Type: dirifempty; Name: "{autopf}\{#MyAppName}"
@@ -316,8 +322,11 @@ var
   ARCHITECTURE DETECTION
   ============================================================================ }
 function IsARM64: Boolean;
+var
+  Arch: String;
 begin
-  Result := (ProcessorArchitecture = paARM64);
+  Arch := ExpandConstant('{%PROCESSOR_ARCHITECTURE}');
+  Result := (Pos('ARM64', UpperCase(Arch)) > 0);
 end;
 
 function GetArchDescription(Param: String): String;
@@ -394,6 +403,137 @@ begin
   Result := (GetVSCodePath <> '');
 end;
 
+function CanInstallVSCodeExtension: Boolean;
+begin
+  Result := IsVSCodeInstalled and FileExists(GetVSCodeCmdPath(''));
+end;
+
+function EscapePSSingleQuoted(Value: String): String;
+begin
+  Result := Value;
+  StringChangeEx(Result, '''', '''''', True);
+end;
+
+function TryReadExistingInstallPath(var InstallPath: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\{#MyAppName}', 'InstallPath', InstallPath);
+  if not Result then
+    Result := RegQueryStringValue(HKEY_CURRENT_USER, 'SOFTWARE\{#MyAppName}', 'InstallPath', InstallPath);
+end;
+
+function GetPreviousUninstallString(var UninstallString: String): Boolean;
+var
+  KeyPath: String;
+begin
+  KeyPath := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#emit SetupSetting("AppId")}_is1';
+  Result := RegQueryStringValue(HKEY_LOCAL_MACHINE, KeyPath, 'UninstallString', UninstallString);
+  if not Result then
+    Result := RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'UninstallString', UninstallString);
+  if not Result then
+  begin
+    KeyPath := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1';
+    Result := RegQueryStringValue(HKEY_LOCAL_MACHINE, KeyPath, 'UninstallString', UninstallString);
+    if not Result then
+      Result := RegQueryStringValue(HKEY_CURRENT_USER, KeyPath, 'UninstallString', UninstallString);
+  end;
+end;
+
+procedure CleanupLegacyLevythonPath(InstallPathHint: String);
+var
+  ResultCode: Integer;
+  PSCommand: String;
+  EscHint: String;
+begin
+  EscHint := EscapePSSingleQuoted(InstallPathHint);
+  PSCommand :=
+    '$targets=@(' +
+    '''C:\Program Files\Levython'',''C:\Program Files\Levython\bin'',' +
+    '''' + EscapePSSingleQuoted(ExpandConstant('{app}')) + ''',''' + EscapePSSingleQuoted(ExpandConstant('{app}\bin')) + '''';
+
+  if InstallPathHint <> '' then
+    PSCommand := PSCommand + ',''' + EscHint + ''',''' + EscapePSSingleQuoted(AddBackslash(InstallPathHint) + 'bin') + '''';
+
+  PSCommand := PSCommand +
+    '); ' +
+    '$targets=$targets | Select-Object -Unique; ' +
+    'foreach($scope in ''Machine'',''User''){ ' +
+      '$p=[Environment]::GetEnvironmentVariable(''Path'',$scope); ' +
+      'if([string]::IsNullOrWhiteSpace($p)){continue}; ' +
+      '$entries=$p -split '';'' | Where-Object { $_ -and $_.Trim() -ne '''' }; ' +
+      '$entries=$entries | Where-Object { ($targets -notcontains $_) -and ($_ -notmatch ''\\Levython(\\bin)?$'') }; ' +
+      '$newPath=($entries | Select-Object -Unique) -join '';''; ' +
+      '[Environment]::SetEnvironmentVariable(''Path'',$newPath,$scope); ' +
+    '}';
+
+  Exec(
+    'powershell.exe',
+    '-ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + PSCommand + '"',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  );
+end;
+
+function RunPreviousUninstaller: Boolean;
+var
+  UninstallString: String;
+  UninstallExe: String;
+  UninstallParams: String;
+  ResultCode: Integer;
+  i: Integer;
+begin
+  Result := True;
+
+  if not GetPreviousUninstallString(UninstallString) then
+    Exit;
+
+  UninstallString := Trim(UninstallString);
+  if UninstallString = '' then
+    Exit;
+
+  UninstallExe := '';
+  UninstallParams := '';
+
+  if UninstallString[1] = '"' then
+  begin
+    Delete(UninstallString, 1, 1);
+    i := Pos('"', UninstallString);
+    if i > 0 then
+    begin
+      UninstallExe := Copy(UninstallString, 1, i - 1);
+      UninstallParams := Trim(Copy(UninstallString, i + 1, MaxInt));
+    end
+    else
+      UninstallExe := UninstallString;
+  end
+  else
+  begin
+    i := Pos(' ', UninstallString);
+    if i > 0 then
+    begin
+      UninstallExe := Copy(UninstallString, 1, i - 1);
+      UninstallParams := Trim(Copy(UninstallString, i + 1, MaxInt));
+    end
+    else
+      UninstallExe := UninstallString;
+  end;
+
+  if Pos('/VERYSILENT', UpperCase(UninstallParams)) = 0 then
+    UninstallParams := Trim(UninstallParams + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART');
+
+  if not FileExists(UninstallExe) then
+    Exit;
+
+  if not Exec(UninstallExe, UninstallParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  Result := (ResultCode = 0);
+end;
+
 { ============================================================================
   PATH MANAGEMENT
   ============================================================================ }
@@ -409,25 +549,27 @@ begin
     Result := Pos(';' + UpperCase(Param) + ';', ';' + UpperCase(OrigPath) + ';') = 0;
 end;
 
-procedure AddToSystemPath(PathToAdd: String);
+procedure AddToSystemPath(PathToAdd: String; LegacyPathToRemove: String);
 var
-  CurrentPath: String;
-  NewPath: String;
   ResultCode: Integer;
-  PowerShellCmd: String;
 begin
-  // Use PowerShell for reliable PATH modification
-  PowerShellCmd := Format(
-    'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command ' +
-    '"$currentPath = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); ' +
-    'if ($currentPath -notlike ''*%s*'') { ' +
-    '$newPath = $currentPath + '';%s''; ' +
-    '[Environment]::SetEnvironmentVariable(''Path'', $newPath, ''Machine''); ' +
-    '}"',
-    [PathToAdd, PathToAdd]
+  // Use PowerShell for reliable PATH modification.
+  // Remove legacy path entries and move {app}\bin to the front.
+  Exec(
+    'powershell.exe',
+    '-ExecutionPolicy Bypass -WindowStyle Hidden -Command "' +
+      '$target=''' + PathToAdd + '''; ' +
+      '$legacy=''' + LegacyPathToRemove + '''; ' +
+      '$currentPath=[Environment]::GetEnvironmentVariable(''Path'',''Machine''); ' +
+      '$entries=@(); if($currentPath){$entries=$currentPath -split '';'' | Where-Object { $_ -and $_.Trim() -ne '''' }}; ' +
+      '$entries=$entries | Where-Object { $_ -ne $target -and $_ -ne $legacy }; ' +
+      '$newPath=$target; if($entries.Count -gt 0){$newPath=$target + '';'' + ($entries -join '';'')}; ' +
+      '[Environment]::SetEnvironmentVariable(''Path'', $newPath, ''Machine'');"',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
   );
-
-  Exec('cmd.exe', '/C ' + PowerShellCmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 { ============================================================================
@@ -481,7 +623,7 @@ begin
     // Add to PATH if selected
     if WizardIsTaskSelected('addtopath') then
     begin
-      AddToSystemPath(ExpandConstant('{app}\bin'));
+      AddToSystemPath(ExpandConstant('{app}\bin'), ExpandConstant('{app}'));
     end;
 
     // Broadcast environment variable change
@@ -495,7 +637,6 @@ end;
 procedure CurPageChanged(CurPageID: Integer);
 var
   ArchStr: String;
-  SpaceStr: String;
 begin
   // Enhanced welcome page
   if CurPageID = wpWelcome then
@@ -513,7 +654,6 @@ begin
   // Enhanced select dir page
   if CurPageID = wpSelectDir then
   begin
-    SpaceStr := GetSpaceOnDisk(ExpandConstant('{app}'), False, '', '');
     WizardForm.DirEdit.Color := $FFFFFF;
   end;
 
@@ -553,6 +693,8 @@ var
   ExistingVersion: String;
   ExistingPath: String;
   MsgText: String;
+  FreeMB: Cardinal;
+  TotalMB: Cardinal;
 begin
   Result := True;
 
@@ -576,23 +718,40 @@ begin
   // Check for sufficient disk space (require at least 100 MB)
   if Result then
   begin
-    if GetSpaceOnDisk(ExpandConstant('{app}'), False, '', '') < (100 * 1024 * 1024) then
+    if GetSpaceOnDisk(ExpandConstant('{sd}'), True, FreeMB, TotalMB) then
     begin
-      MsgBox('Insufficient disk space. At least 100 MB of free space is required.', mbError, MB_OK);
-      Result := False;
+      if FreeMB < 100 then
+      begin
+        MsgBox('Insufficient disk space. At least 100 MB of free space is required.', mbError, MB_OK);
+        Result := False;
+      end;
     end;
   end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  ResultCode: Integer;
+  ExistingPath: String;
 begin
   Result := '';
   NeedsRestart := False;
 
-  // Pre-installation checks can go here
-  // For example: check for conflicting processes, dependencies, etc.
+  ExistingPath := '';
+  TryReadExistingInstallPath(ExistingPath);
+
+  // Always clean stale Levython PATH entries first to avoid command conflicts.
+  CleanupLegacyLevythonPath(ExistingPath);
+
+  // If a previous Levython install exists, uninstall it before continuing.
+  if not RunPreviousUninstaller then
+  begin
+    Result :=
+      'Failed to uninstall the previous Levython version automatically.' + #13#10#13#10 +
+      'Close any running levython.exe processes and run this installer again as Administrator.';
+    Exit;
+  end;
+
+  CleanupLegacyLevythonPath(ExistingPath);
 end;
 
 { ============================================================================
@@ -614,8 +773,6 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var
-  ResultCode: Integer;
 begin
   if CurUninstallStep = usPostUninstall then
   begin
